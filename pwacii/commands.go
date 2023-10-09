@@ -1,4 +1,4 @@
-package device
+package pwacii
 
 type CommandType int
 
@@ -77,6 +77,16 @@ func (cmd CommandType) Code() string {
 	default:
 		return ""
 	}
+}
+
+func (cmd CommandType) WithResponse() bool {
+	switch cmd {
+	case ConfRequest:
+	case StatusRequest:
+	default:
+		return false
+	}
+	return true
 }
 
 type Command struct {
