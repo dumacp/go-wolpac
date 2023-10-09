@@ -30,7 +30,9 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	tick := time.NewTicker(10 * time.Second)
+	tick0 := time.NewTimer(5 * time.Second)
+	defer tick0.Stop()
+	tick := time.NewTicker(60 * time.Second)
 	defer tick.Stop()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -42,8 +44,19 @@ func main() {
 		select {
 		case <-ctx.Done():
 			return
-		case v := <-evts:
+		case v, ok := <-evts:
+			if !ok {
+				fmt.Println("close channel")
+				return
+			}
 			fmt.Printf("event: %q\n", v)
+		case <-tick0.C:
+			v, err := dev.Command(pwacii.OneEntryAllow, "")
+			if err != nil {
+				fmt.Printf("error command (%q): %s\n", pwacii.OneEntryAllow, err)
+				break
+			}
+			fmt.Printf("command (%q) response: %q\n", pwacii.OneEntryAllow, v)
 		case <-tick.C:
 			v, err := dev.Command(pwacii.OneEntryAllow, "")
 			if err != nil {

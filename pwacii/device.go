@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	READTIMEOUT = 30 * time.Millisecond
+	READTIMEOUT = 100 * time.Millisecond
 )
 
 type Conf struct {
@@ -66,6 +66,12 @@ func (c *Conf) Open(opts ...OptsFunc) (*Device, error) {
 	dev := &Device{}
 	dev.Port = p
 
+	// resp, err := command(dev, ConfStatus, "")
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// fmt.Printf("conf status response: %q\n", resp)
+
 	resp, err := command(dev, ConfRequest, o.OptsToString())
 	if err != nil {
 		return nil, err
@@ -82,9 +88,29 @@ func command(d *Device, cmd CommandType, data string) (string, error) {
 	d.muxRwrite.Lock()
 	defer d.muxRwrite.Unlock()
 
-	w := bufio.NewWriter(d.Port)
-	s := fmt.Sprintf("$%s%s\n", cmd.Code(), data)
-	fmt.Printf("cmd to send: %q\n", s)
+	// w := bufio.NewWriter(d.Port)
+	// r := bufio.NewReader(d.Port)
+	// w := d.Port
+	// r := d.Port
+	s := fmt.Sprintf("$%s%s\r\n", cmd.Code(), data)
+	fmt.Printf("cmd to send: %q, %X\n", s, s)
+
+	// if n, err := w.Write([]byte(s)); err != nil {
+	// 	return "", err
+	// } else {
+	// 	fmt.Printf("%d bytes writtern\n", n)
+	// }
+
+	// buff := make([]byte, 1024)
+	// if n, err := r.Read(buff); err != nil && n == 0 {
+	// 	return "", err
+	// } else {
+	// 	fmt.Printf("%d bytes read: %X\n", n, buff[:n])
+	// }
+
+	// return string(buff), nil
+
+	/**/
 
 	type response struct {
 		data string
@@ -96,10 +122,14 @@ func command(d *Device, cmd CommandType, data string) (string, error) {
 	go func() {
 
 		defer close(ch)
+		// r := bufio.NewReader(d.Port)
+		var r *bufio.Reader
 		funcAck := func() (string, error) {
-			r := bufio.NewReader(d.Port)
+			if r == nil {
+				r = bufio.NewReader(d.Port)
+			}
 			resp, err := r.ReadString('\n')
-			if err != nil {
+			if err != nil && len(resp) == 0 {
 				return "", err
 			}
 			if len(resp) <= 0 {
@@ -112,7 +142,9 @@ func command(d *Device, cmd CommandType, data string) (string, error) {
 		}
 
 		funcResp := func() (string, error) {
-			r := bufio.NewReader(d.Port)
+			if r == nil {
+				r = bufio.NewReader(d.Port)
+			}
 			resp, err := r.ReadString('\n')
 			if err != nil {
 				return "", err
@@ -182,7 +214,7 @@ func command(d *Device, cmd CommandType, data string) (string, error) {
 		}
 	}()
 
-	if n, err := w.WriteString(s); err != nil {
+	if n, err := d.Port.Write([]byte(s)); err != nil {
 		return "", err
 	} else if n <= 0 {
 		return "", fmt.Errorf("write 0 bytes to serial port")
@@ -191,4 +223,5 @@ func command(d *Device, cmd CommandType, data string) (string, error) {
 		return v.data, v.err
 	}
 	return "", fmt.Errorf("unkown error")
+	/**/
 }

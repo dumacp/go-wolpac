@@ -4,6 +4,7 @@ type CommandType int
 
 const (
 	ConfRequest CommandType = iota
+	ConfStatus
 	StatusRequest
 	GeneralReleaseEnable
 	GeneralReleaseDisable
@@ -21,6 +22,8 @@ func (cmd CommandType) String() string {
 	switch cmd {
 	case ConfRequest:
 		return "ConfRequest"
+	case ConfStatus:
+		return "ConfStatus"
 	case StatusRequest:
 		return "StatusRequest"
 	case GeneralReleaseEnable:
@@ -50,8 +53,10 @@ func (cmd CommandType) String() string {
 
 func (cmd CommandType) Code() string {
 	switch cmd {
-	case ConfRequest:
+	case ConfStatus:
 		return "CG"
+	case ConfRequest:
+		return "CF"
 	case StatusRequest:
 		return "SS"
 	case GeneralReleaseEnable:
@@ -81,7 +86,7 @@ func (cmd CommandType) Code() string {
 
 func (cmd CommandType) WithResponse() bool {
 	switch cmd {
-	case ConfRequest:
+	case ConfStatus:
 	case StatusRequest:
 	default:
 		return false

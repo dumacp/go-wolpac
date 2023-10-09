@@ -106,6 +106,29 @@ func (d *Device) Events(ctx context.Context) chan Event {
 				t0 := time.Now()
 
 				s := bufio.NewReader(d.Port)
+				b0, err := s.ReadByte()
+				if err != nil {
+					if !errors.Is(err, io.EOF) {
+						return nil, fmt.Errorf("error read listen events: %s", err)
+
+					} else if time.Since(t0) < READTIMEOUT/10 {
+						countErrors++
+						if countErrors > maxErrors {
+							return nil, fmt.Errorf("%d errors io.EOF read listen events", countErrors)
+
+						}
+						return nil, nil
+					}
+				} else {
+					countErrors = 0
+				}
+				if b0 == '@' {
+					return []byte{'@'}, nil
+				} else if b0 == '%' {
+					return []byte{'%'}, nil
+				} else if b0 != '!' {
+					return nil, nil
+				}
 				datawithdelimiter, err := s.ReadBytes('\n')
 				if err != nil {
 					if !errors.Is(err, io.EOF) {
@@ -122,7 +145,14 @@ func (d *Device) Events(ctx context.Context) chan Event {
 				} else {
 					countErrors = 0
 				}
-				return datawithdelimiter[:len(datawithdelimiter)-1], nil
+				fmt.Printf("data raw: %02X%02X\n", b0, datawithdelimiter)
+				if len(datawithdelimiter) < 1 {
+					return nil, nil
+				}
+				temp := make([]byte, 0)
+				temp = append(temp, b0)
+				temp = append(temp, datawithdelimiter[:len(datawithdelimiter)-1]...)
+				return temp, nil
 			}()
 			if err != nil {
 				fmt.Println(err)
@@ -148,7 +178,7 @@ func (d *Device) Events(ctx context.Context) chan Event {
 					continue
 				}
 			} else {
-				fmt.Println("without data")
+				// fmt.Println("without data")
 				continue
 			}
 			// fmt.Printf("data: %s\n", data)
