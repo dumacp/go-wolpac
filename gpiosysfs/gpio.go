@@ -1,15 +1,13 @@
-package gpiosysfsne
+package gpiosysfs
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 )
 
 // Chip is the information of a GPIO controller chip.
@@ -19,80 +17,10 @@ type Chip struct {
 	Ngpio int    // How many GPIOs this chip manges. The GPIOs managed by this chip are in the range of Base to Base + ngpio - 1.
 }
 
-const gpioPath = "/sys/class/gpio"
-
-// Controllers returns all GPIO controllers available.
-func Controllers() (chips []Chip, err error) {
-	dir, err := os.Open(gpioPath)
-	if err != nil {
-		return
-	}
-	children, err := dir.Readdir(-1)
-	if err != nil {
-		return
-	}
-
-	chips = make([]Chip, 0, len(children))
-	for _, child := range children {
-		if strings.HasPrefix(child.Name(), "gpiochip") {
-			var chip Chip
-			chip, err = newController(filepath.Join(gpioPath, child.Name()))
-			if err != nil {
-				return
-			}
-			chips = append(chips, chip)
-		}
-	}
-	return
-}
-
-// Controller returns the GPIO controller #n.
-func Controller(n int) (Chip, error) {
-	filepath.Join()
-	var gpiochip = []byte("gpiochip  ")[:len("gpiochip")]
-	gpiochipN := strconv.AppendInt(gpiochip, int64(n), 10)
-	return newController(filepath.Join(gpioPath, string(gpiochipN)))
-}
-
-func newController(chipDir string) (chip Chip, err error) {
-	defer func() {
-		if err != nil {
-			err = fmt.Errorf("failed to get controller: %w", err)
-		}
-	}()
-	buf, err := ioutil.ReadFile(filepath.Join(chipDir, "base"))
-	if err != nil {
-		return
-	}
-	chip.Base, err = strconv.Atoi(trimNewlines(buf))
-	if err != nil {
-		return
-	}
-
-	buf, err = ioutil.ReadFile(filepath.Join(chipDir, "label"))
-	if err != nil {
-		return
-	}
-	chip.Label = trimNewlines(buf)
-
-	buf, err = ioutil.ReadFile(chipDir + "ngpio")
-	if err != nil {
-		return
-	}
-	chip.Ngpio, err = strconv.Atoi(trimNewlines(buf))
-	if err != nil {
-		return
-	}
-
-	return
-}
-
 // Pin is a GPIO pin.
 type Pin struct {
 	n                                 int
 	value, direction, edge, activeLow *gpioFile
-
-	cancelInterrupt chan struct{}
 }
 
 // OpenPin opens the GPIO pin #n for IO.
@@ -116,18 +44,16 @@ func OpenPin(n int) (pin *Pin, err error) {
 	}
 
 	pin = &Pin{n: n,
-		cancelInterrupt: make(chan struct{}),
-		direction:       &gpioFile{Path: filepath.Join(dir, "direction")},
-		value:           &gpioFile{Path: filepath.Join(dir, "value")},
-		edge:            &gpioFile{Path: filepath.Join(dir, "edge")},
-		activeLow:       &gpioFile{Path: filepath.Join(dir, "active_low")},
+		direction: &gpioFile{Path: filepath.Join(dir, "direction")},
+		value:     &gpioFile{Path: filepath.Join(dir, "value")},
+		edge:      &gpioFile{Path: filepath.Join(dir, "edge")},
+		activeLow: &gpioFile{Path: filepath.Join(dir, "active_low")},
 	}
 	return
 }
 
 // Close closes the pin.
 func (pin *Pin) Close() (err error) {
-	close(pin.cancelInterrupt)
 	err = writeExisting("/sys/class/gpio/unexport", strconv.Itoa(pin.n))
 	if err != nil {
 		err = fmt.Errorf("failed to close pin #%v: %w", pin.n, err)
@@ -170,9 +96,9 @@ type Direction string
 // Available directions.
 const (
 	In      Direction = "in"   // RW. The pin is configured as input.
-	Out               = "out"  // RW. The pin is configured as output, usually initialized to low.
-	OutLow            = "low"  // W. Configure the pin as output and initialize it to low.
-	OutHigh           = "high" // W. Configure the pin as output and initialize it to high.
+	Out     Direction = "out"  // RW. The pin is configured as output, usually initialized to low.
+	OutLow  Direction = "low"  // W. Configure the pin as output and initialize it to low.
+	OutHigh Direction = "high" // W. Configure the pin as output and initialize it to high.
 )
 
 // SetDirection sets the IO direction of the pin.
@@ -258,27 +184,24 @@ func (pin *Pin) Value() (value byte, err error) {
 }
 
 // SetValue set the current value of the pin. 1 for high and 0 for low.
-func (pin *Pin) SetValue(value byte) (err error) {
+func (pin *Pin) SetValue(value byte) error {
 	var buf = [1]byte{'1'}
 	if value == 0 {
 		buf[0] = '0'
 	}
-	_, err = pin.value.WriteAt0(buf[:])
-	if err != nil {
-		err = wrapPinError(pin, "set value", err)
+	if _, err := pin.value.WriteAt0(buf[:]); err != nil {
+		return wrapPinError(pin, "set value", err)
 	}
-	return
+	return nil
 }
 
 // ActiveLow returns whether the pin is configured as active low.
-func (pin *Pin) ActiveLow(value bool, err error) {
+func (pin *Pin) ActiveLow() (bool, error) {
 	var buf [1]byte
-	_, err = pin.activeLow.ReadAt0(buf[:])
-	if err != nil {
-		err = wrapPinError(pin, "get activelow", err)
+	if _, err := pin.activeLow.ReadAt0(buf[:]); err != nil {
+		return false, wrapPinError(pin, "get activelow", err)
 	}
-	value = buf[0] == '1'
-	return
+	return buf[0] == '1', nil
 }
 
 // SetActiveLow sets whether pin is configured as active low.

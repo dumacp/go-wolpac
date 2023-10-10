@@ -1,4 +1,4 @@
-package gpiosysfsne
+package gpiosysfs
 
 import (
 	"os"

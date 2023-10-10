@@ -1,4 +1,4 @@
-package gpiosysfsne
+package gpiosysfs
 
 import (
 	"context"
@@ -29,7 +29,7 @@ type Event struct {
 	RisingEdge bool // Whether this event is triggered by a rising edge.
 }
 
-func newEvents(f *gpioFile, pin int32) (*FdEvents, error) {
+func newEvents(ctx context.Context, f *gpioFile, pin int32) (*FdEvents, error) {
 
 	fmt.Println("listen events")
 	var err error
@@ -45,7 +45,7 @@ func newEvents(f *gpioFile, pin int32) (*FdEvents, error) {
 	fdSet.Bits[int(f.rfile.Fd()/64)] |= 1 << uint(f.rfile.Fd()%64)
 
 	// bucle infinito para esperar cambios en el estado de la GPIO
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(ctx)
 	events := new(FdEvents)
 	events.events = make(chan *Event, 1)
 	go func() {
@@ -78,7 +78,7 @@ func newEvents(f *gpioFile, pin int32) (*FdEvents, error) {
 					// }
 
 					// leer el valor del archivo para determinar el nuevo estado de la GPIO
-					buf := make([]byte, 1024)
+					buf := make([]byte, 1)
 					n, err := f.rfile.ReadAt(buf[:], 0)
 					if err != nil {
 						if !errors.Is(err, io.EOF) || n <= 0 {
@@ -118,7 +118,7 @@ type PinWithEvent struct {
 }
 
 // OpenPinWithEvents opens a GPIO pin for input and GPIO events.
-func OpenPinWithEvents(n int) (*PinWithEvent, error) {
+func OpenPinWithEvents(ctx context.Context, n int) (*PinWithEvent, error) {
 	p, err := OpenPin(n)
 	if err != nil {
 		return nil, err
@@ -128,7 +128,7 @@ func OpenPinWithEvents(n int) (*PinWithEvent, error) {
 		return nil, err
 	}
 
-	events, err := newEvents(p.value, int32(n))
+	events, err := newEvents(ctx, p.value, int32(n))
 	if err != nil {
 		return nil, err
 	}
