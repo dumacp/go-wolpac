@@ -53,41 +53,32 @@ func OpenPin(n int) (pin *Pin, err error) {
 }
 
 // Close closes the pin.
-func (pin *Pin) Close() (err error) {
-	err = writeExisting("/sys/class/gpio/unexport", strconv.Itoa(pin.n))
-	if err != nil {
-		err = fmt.Errorf("failed to close pin #%v: %w", pin.n, err)
+func (pin *Pin) Close() error {
+	if err := writeExisting("/sys/class/gpio/unexport", strconv.Itoa(pin.n)); err != nil {
+		return fmt.Errorf("failed to close pin #%v: %w", pin.n, err)
 	}
 
 	if pin.value != nil {
-		err = pin.value.Close()
-		if err != nil {
-			err = fmt.Errorf("failed to close pin #%v: %w", pin.n, err)
-			return
+		if err := pin.value.Close(); err != nil {
+			return fmt.Errorf("failed to close pin #%v: %w", pin.n, err)
 		}
 	}
 	if pin.direction != nil {
-		err = pin.direction.Close()
-		if err != nil {
-			err = fmt.Errorf("failed to close pin #%v: %w", pin.n, err)
-			return
+		if err := pin.direction.Close(); err != nil {
+			return fmt.Errorf("failed to close pin #%v: %w", pin.n, err)
 		}
 	}
 	if pin.edge != nil {
-		err = pin.edge.Close()
-		if err != nil {
-			err = fmt.Errorf("failed to close pin #%v: %w", pin.n, err)
-			return
+		if err := pin.edge.Close(); err != nil {
+			return fmt.Errorf("failed to close pin #%v: %w", pin.n, err)
 		}
 	}
 	if pin.activeLow != nil {
-		err = pin.activeLow.Close()
-		if err != nil {
-			err = fmt.Errorf("failed to close pin #%v: %w", pin.n, err)
-			return
+		if err := pin.activeLow.Close(); err != nil {
+			return fmt.Errorf("failed to close pin #%v: %w", pin.n, err)
 		}
 	}
-	return
+	return nil
 }
 
 // Direction is the IO direction.
@@ -103,12 +94,11 @@ const (
 
 // SetDirection sets the IO direction of the pin.
 // pin.SetDirection(Out) may fail if Edge is not None.
-func (pin *Pin) SetDirection(direction Direction) (err error) {
-	_, err = pin.direction.WriteAt0([]byte(direction))
-	if err != nil {
-		err = wrapPinError(pin, "set direction", err)
+func (pin *Pin) SetDirection(direction Direction) error {
+	if _, err := pin.direction.WriteAt0([]byte(direction)); err != nil {
+		return wrapPinError(pin, "set direction", err)
 	}
-	return
+	return nil
 }
 
 // Must be greater or equal to the max length of Edge and Direction constants.
@@ -116,17 +106,15 @@ const strBufLen = 16
 
 // Direction returns the IO direction of the pin.
 // The return values is In or Out.
-func (pin *Pin) Direction() (dir Direction, err error) {
+func (pin *Pin) Direction() (Direction, error) {
 	var buf [strBufLen]byte
 	n, err := pin.direction.ReadAt0(buf[:])
 	if err != nil {
 		if err != io.EOF {
-			err = wrapPinError(pin, "get direction", err)
-			return
+			return "", wrapPinError(pin, "get direction", err)
 		}
 	}
-	dir = Direction(trimNewlines(buf[:n]))
-	return
+	return Direction(trimNewlines(buf[:n])), nil
 }
 
 // Edge is the signal edge that will make Interrupt send value to the channel.
@@ -146,41 +134,38 @@ const (
 // SetEdge sets which edges are selected to generate interrupts.
 // Not all GPIO pins are configured to support edge selection,
 // so, Edge should be called to confirm the desired edge are set actually.
-func (pin *Pin) SetEdge(edge Edge) (err error) {
-	_, err = pin.edge.WriteAt0([]byte(edge))
+func (pin *Pin) SetEdge(edge Edge) error {
+	_, err := pin.edge.WriteAt0([]byte(edge))
 	if err != nil {
-		err = wrapPinError(pin, "set edge", err)
+		return wrapPinError(pin, "set edge", err)
 	}
-	return
+	return nil
 }
 
 // Edge returns which edges are selected to generate interrupts.
-func (pin *Pin) Edge() (edge Edge, err error) {
+func (pin *Pin) Edge() (Edge, error) {
 	var buf [strBufLen]byte
 	n, err := pin.edge.ReadAt0(buf[:])
 	if err != nil {
 		if err != io.EOF {
-			err = wrapPinError(pin, "get edge", err)
-			return
+			return "", wrapPinError(pin, "get edge", err)
 		}
 	}
-	edge = Edge(trimNewlines(buf[:n]))
-	return
+	return Edge(trimNewlines(buf[:n])), nil
 }
 
 // Value returns the current value of the pin. 1 for high and 0 for low.
-func (pin *Pin) Value() (value byte, err error) {
+func (pin *Pin) Value() (byte, error) {
 	var buf [1]byte
 	n, err := pin.value.ReadAt0(buf[:])
 	if !errors.Is(err, io.EOF) || n <= 0 {
-		err = wrapPinError(pin, "get value", err)
+		return 0, wrapPinError(pin, "get value", err)
 	}
-	if buf[0] == '0' {
-		value = 0
-	} else {
+	value := byte(0)
+	if buf[0] != '0' {
 		value = 1
 	}
-	return
+	return value, nil
 }
 
 // SetValue set the current value of the pin. 1 for high and 0 for low.
@@ -205,28 +190,27 @@ func (pin *Pin) ActiveLow() (bool, error) {
 }
 
 // SetActiveLow sets whether pin is configured as active low.
-func (pin *Pin) SetActiveLow(value bool) (err error) {
+func (pin *Pin) SetActiveLow(value bool) error {
 	var buf = [1]byte{'1'}
 	if !value {
 		buf[0] = '0'
 	}
-	_, err = pin.activeLow.WriteAt0(buf[:])
-	if err != nil {
-		err = wrapPinError(pin, "set activelow", err)
+	if _, err := pin.activeLow.WriteAt0(buf[:]); err != nil {
+		return wrapPinError(pin, "set activelow", err)
 	}
-	return
+	return nil
 }
 
-func writeExisting(path string, content string) (err error) {
+func writeExisting(path string, content string) error {
 	f, err := os.OpenFile(path, os.O_WRONLY, 0)
 	if err != nil {
-		return
+		return err
 	}
 	defer f.Close()
 	if _, err = f.Write([]byte(content)); err != nil {
 		return err
 	}
-	return
+	return nil
 }
 
 func trimNewlines(str []byte) string {

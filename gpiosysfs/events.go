@@ -11,6 +11,11 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const (
+	EPOLLET        = 1 << 31
+	MaxEpollEvents = 32
+)
+
 // FdEvents converts epoll_wait loops to a chanel.
 type FdEvents struct {
 	events chan *Event
@@ -51,7 +56,7 @@ func newEvents(ctx context.Context, f *gpioFile, pin int32) (*FdEvents, error) {
 	go func() {
 		defer cancel()
 
-		tick := time.NewTicker(600 * time.Millisecond)
+		tick := time.NewTicker(100 * time.Millisecond)
 		defer tick.Stop()
 		value := -1
 

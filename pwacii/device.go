@@ -2,6 +2,7 @@ package pwacii
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -124,51 +125,76 @@ func command(d *Device, cmd CommandType, data string) (string, error) {
 		defer close(ch)
 		// r := bufio.NewReader(d.Port)
 		var r *bufio.Reader
-		funcAck := func() (string, error) {
+
+		const maxErrors int = 3
+		countErrors := 0
+		funcResp := func(awaitResponse bool) ([]byte, error) {
 			if r == nil {
 				r = bufio.NewReader(d.Port)
 			}
-			resp, err := r.ReadString('\n')
-			if err != nil && len(resp) == 0 {
-				return "", err
+			// resp, err := r.ReadString('\n')
+			t0 := time.Now()
+			b0, err := r.ReadByte()
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					return nil, fmt.Errorf("error read listen events: %s", err)
+
+				} else if time.Since(t0) < READTIMEOUT/10 {
+					countErrors++
+					if countErrors > maxErrors {
+						return nil, fmt.Errorf("%d errors io.EOF read listen events", countErrors)
+					}
+					return nil, fmt.Errorf("readTimeout (%s) nil response", err)
+				}
+			} else {
+				countErrors = 0
+			}
+			if b0 == '%' {
+				return nil, fmt.Errorf("wrong command")
+			}
+			if !awaitResponse {
+				if b0 == '@' {
+					return nil, nil
+				} else {
+					return nil, fmt.Errorf("wrong response (%q)", b0)
+				}
+			}
+
+			t0 = time.Now()
+			resp, err := r.ReadBytes('\n')
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					return nil, fmt.Errorf("error read listen events: %s", err)
+
+				} else if time.Since(t0) < READTIMEOUT/10 {
+					countErrors++
+					if countErrors > maxErrors {
+						return nil, fmt.Errorf("%d errors io.EOF read listen events", countErrors)
+
+					}
+					return nil, fmt.Errorf("readTimeout (%s) nil response", err)
+				}
+			} else {
+				countErrors = 0
 			}
 			if len(resp) <= 0 {
 				return resp, fmt.Errorf("nil response: %q", resp)
 			}
-			if resp[0] != '@' {
-				return resp, fmt.Errorf("unkown response: %q", resp[0])
+			if b0 == '!' {
+				return resp[:], nil
 			}
-			return resp, nil
+			if len(resp) < 2 {
+				return resp[:], fmt.Errorf("unkown response: %q", resp)
+			}
+			if resp[0] == '!' {
+				return resp[1:], nil
+			}
+			return nil, fmt.Errorf("unkown response: %q", resp)
 		}
 
-		funcResp := func() (string, error) {
-			if r == nil {
-				r = bufio.NewReader(d.Port)
-			}
-			resp, err := r.ReadString('\n')
-			if err != nil {
-				return "", err
-			}
-			if len(resp) < 3 {
-				return resp, fmt.Errorf("unkown response: %q", resp)
-			}
-			if len(resp) < 1 && resp[0] != '!' {
-				return resp, fmt.Errorf("unkown response: %q", resp)
-			}
-			return resp[1:], nil
-		}
-
-		chresponse, err := func() (string, error) {
-			if d.chCmdAck == nil {
-				if resp, err := funcAck(); err != nil {
-					return resp, err
-				}
-				if !cmd.WithResponse() {
-					return "", nil
-				}
-			}
-			if d.chCmdResp == nil && cmd.WithResponse() {
-				if resp, err := funcResp(); err != nil {
+		chresponse, err := func() ([]byte, error) {
+			if d.chCmdAck == nil || d.chCmdResp == nil {
+				if resp, err := funcResp(cmd.WithResponse()); err != nil {
 					return resp, err
 				} else {
 					return resp, nil
@@ -177,36 +203,42 @@ func command(d *Device, cmd CommandType, data string) (string, error) {
 			select {
 			case v, ok := <-d.chCmdAck:
 				if !ok {
-					if resp, err := funcAck(); err != nil {
+					if resp, err := funcResp(cmd.WithResponse()); err != nil {
 						return resp, err
+					} else {
+						return resp, nil
 					}
 				} else if v != 1 {
-					return "", fmt.Errorf("error %q response", "%")
+					return nil, fmt.Errorf("error %q response", "%")
 				}
 				if !cmd.WithResponse() {
-					return "", nil
+					return nil, nil
 				}
 			case v, ok := <-d.chCmdResp:
 				if !ok {
-					if resp, err := funcResp(); err != nil {
+					if resp, err := funcResp(cmd.WithResponse()); err != nil {
 						return resp, err
 					} else {
 						return resp, nil
 					}
 				}
 				if !strings.EqualFold(v.EventType.Code(), cmd.Code()) {
-					return data, fmt.Errorf("cmd response different to cmd: %q != %q, data: %q",
+					return nil, fmt.Errorf("cmd response different to cmd: %q != %q, data: %q",
 						cmd, v.EventType, fmt.Sprintf("%s%s", v.EventType.Code(), v.Data))
 				}
-				return v.Data, nil
+				return []byte(v.Data), nil
 			case <-time.After(300 * time.Millisecond):
-				return "", fmt.Errorf("timeout read")
+				return nil, fmt.Errorf("timeout read")
 			}
-			return "", nil
+			return nil, nil
 		}()
+		datatosend := ""
+		if len(chresponse) > 0 {
+			datatosend = string(chresponse)
+		}
 		select {
 		case ch <- response{
-			data: chresponse,
+			data: datatosend,
 			err:  err,
 		}:
 		case <-time.After(10 * time.Millisecond):
