@@ -17,8 +17,8 @@ var (
 )
 
 func init() {
-	flag.IntVar(&gpioInput1, "gpioinput1", 85, "número de la GPIO para sensor 1")
-	flag.IntVar(&gpioInput2, "gpioinput2", 86, "número de la GPIO para sensor 2")
+	flag.IntVar(&gpioInput1, "gpioinput1", 86, "número de la GPIO para sensor 1")
+	flag.IntVar(&gpioInput2, "gpioinput2", 85, "número de la GPIO para sensor 2")
 	flag.StringVar(&pathSignal, "pathsignal", "output1", "path (/sys/class/leds/<PATH>) GPIO para enviar el comando de permtir paso")
 }
 
@@ -26,7 +26,7 @@ func main() {
 	flag.Parse()
 
 	fmt.Printf("default opts: %s\n", catraca.DefaultsOptions())
-	dev := catraca.New()
+	dev := catraca.New(catraca.WithInputSysfsT1(gpioInput1), catraca.WithInputSysfsT2(gpioInput2))
 
 	fmt.Printf("actual opts: %s\n", dev.Opts)
 

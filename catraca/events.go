@@ -38,7 +38,7 @@ func events(ctx context.Context, dev *Device, controlEntrance bool) (chan Event,
 	if err != nil {
 		return nil, err
 	}
-	ch2, err := dev.pin1.EpollEvents(ctx,
+	ch2, err := dev.pin2.EpollEvents(ctx,
 		dev.InputsSysfsActiveLow,
 		gpiosysfs.Edge(dev.InputsSysfsEdge))
 	if err != nil {
@@ -112,6 +112,7 @@ func events(ctx context.Context, dev *Device, controlEntrance bool) (chan Event,
 				}
 			case <-tickTimeoutEntrance.C:
 				if controlEntrance && dev.activeStep {
+					dev.activeStep = false
 					if out, err := funcCommand(); err != nil {
 						fmt.Printf("error comand: %q, err: %s, output: %s\n", cmdDisable, err, out)
 						return
@@ -140,6 +141,7 @@ func events(ctx context.Context, dev *Device, controlEntrance bool) (chan Event,
 					}
 				}
 				if controlEntrance && dev.activeStep {
+					dev.activeStep = false
 					if out, err := funcCommand(); err != nil {
 						fmt.Printf("error comand: %q, err: %s, output: %s\n", cmdDisable, err, out)
 						return

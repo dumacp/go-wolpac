@@ -1,21 +1,21 @@
 package catraca
 
 import (
-	"fmt"
+	"encoding/json"
 	"time"
 
 	"github.com/dumacp/go-wolpac/gpiosysfs"
 )
 
 type Opts struct {
-	SignalLed            string
-	InputsSysfsEdge      Edge
-	SignalGpio           int
-	InputSysfsT1         int
-	InputSysfsT2         int
-	TimeoutEntrance      time.Duration
-	TimeoutTurnAlarm     time.Duration
-	InputsSysfsActiveLow bool
+	SignalLed            string        `json:"signalname"`
+	InputsSysfsEdge      Edge          `json:"gpioedge"`
+	SignalGpio           int           `json:"signalgpio"`
+	InputSysfsT1         int           `json:"gpioinput1"`
+	InputSysfsT2         int           `json:"gpioinput2"`
+	TimeoutEntrance      time.Duration `json:"timeoutallow"`
+	TimeoutTurnAlarm     time.Duration `json:"timeoutalarma"`
+	InputsSysfsActiveLow bool          `json:"gpioactivelow"`
 }
 
 type Edge gpiosysfs.Edge
@@ -34,9 +34,8 @@ const (
 func DefaultsOptions() Opts {
 	return Opts{
 		SignalLed:            "output1",
-		SignalGpio:           0,
-		InputSysfsT1:         85,
-		InputSysfsT2:         86,
+		InputSysfsT1:         86,
+		InputSysfsT2:         85,
 		TimeoutEntrance:      20 * time.Second,
 		InputsSysfsEdge:      Falling,
 		TimeoutTurnAlarm:     5 * time.Second,
@@ -45,7 +44,13 @@ func DefaultsOptions() Opts {
 }
 
 func (opts Opts) String() string {
-	return fmt.Sprintf("%+v", opts)
+
+	data, err := json.Marshal(opts)
+	if err != nil {
+		return ""
+	}
+
+	return string(data)
 }
 
 type OptsFunc func(*Opts)

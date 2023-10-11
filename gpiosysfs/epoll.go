@@ -71,7 +71,8 @@ func newEpollEvents(ctx context.Context, pin *Pin) (chan Event, error) {
 				n, err := syscall.EpollWait(epollFd, events, timeout)
 				if err != nil {
 					fmt.Printf("error: %s\n", err)
-					return
+					continue
+					// return
 				}
 
 				for i := 0; i < n; i++ {

@@ -56,6 +56,10 @@ func (d *Device) Close() error {
 }
 
 func (d *Device) OneEntrance() error {
+	if d.activeStep {
+		return fmt.Errorf("turnstile already active")
+	}
+	d.activeStep = true
 	cmdEnable := fmt.Sprintf("echo 1 > /sys/class/leds/%s/brightness", d.SignalLed)
 	funcCommand := func() ([]byte, error) {
 		if out, err := exec.Command("/bin/sh", "-c", cmdEnable).Output(); err != nil {
@@ -66,7 +70,7 @@ func (d *Device) OneEntrance() error {
 		return nil, nil
 	}
 	if out, err := funcCommand(); err != nil {
-		return fmt.Errorf("error comand: %q, err: %s, output: %s\n", cmdEnable, err, out)
+		return fmt.Errorf("error comand: %q, err: %s, output: %s", cmdEnable, err, out)
 
 	}
 	return nil
@@ -83,7 +87,7 @@ func (d *Device) CancelEntrance() error {
 		return nil, nil
 	}
 	if out, err := funcCommand(); err != nil {
-		return fmt.Errorf("error comand: %q, err: %s, output: %s\n", cmdDisable, err, out)
+		return fmt.Errorf("error comand: %q, err: %s, output: %s", cmdDisable, err, out)
 
 	}
 	return nil
