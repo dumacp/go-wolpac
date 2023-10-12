@@ -4,17 +4,21 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"sync"
 
 	"github.com/dumacp/go-wolpac/gpiosysfs"
 )
 
 type Device struct {
 	Opts
-	pin1       *gpiosysfs.Pin
-	pin2       *gpiosysfs.Pin
-	ctx        context.Context
-	cancel     func()
-	activeStep bool
+	pin1               *gpiosysfs.Pin
+	pin2               *gpiosysfs.Pin
+	ctx                context.Context
+	cancel             func()
+	activeAllowchannel chan struct{}
+	activeStep         bool
+	activeAllow        bool
+	mux                sync.Mutex
 }
 
 func New(opts ...OptsFunc) Device {
@@ -23,7 +27,8 @@ func New(opts ...OptsFunc) Device {
 		fn(&o)
 	}
 	return Device{
-		Opts: o,
+		Opts:               o,
+		activeAllowchannel: make(chan struct{}),
 	}
 }
 
@@ -56,10 +61,13 @@ func (d *Device) Close() error {
 }
 
 func (d *Device) OneEntrance() error {
-	if d.activeStep {
+	if d.activeStep || d.activeAllow {
 		return fmt.Errorf("turnstile already active")
 	}
-	d.activeStep = true
+	select {
+	case d.activeAllowchannel <- struct{}{}:
+	default:
+	}
 	cmdEnable := fmt.Sprintf("echo 1 > /sys/class/leds/%s/brightness", d.SignalLed)
 	funcCommand := func() ([]byte, error) {
 		if out, err := exec.Command("/bin/sh", "-c", cmdEnable).Output(); err != nil {

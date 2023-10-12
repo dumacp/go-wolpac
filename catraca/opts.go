@@ -22,13 +22,13 @@ type Edge gpiosysfs.Edge
 
 const (
 	// None means no edge is selected to generate interrupts.
-	None Edge = Edge(gpiosysfs.None)
+	// None Edge = Edge(gpiosysfs.None)
 	// Rising edges is is selected to generate interrupts. Rising: level is getting to high from low.
 	Rising Edge = Edge(gpiosysfs.Rising)
 	// Falling edges is is selected to generate interrupts. Falling: level is getting to low from hight.
 	Falling Edge = Edge(gpiosysfs.Falling)
 	// Both rising and falling edges are selected to generate interrupts.
-	Both Edge = Edge(gpiosysfs.Both)
+	// Both Edge = Edge(gpiosysfs.Both)
 )
 
 func DefaultsOptions() Opts {

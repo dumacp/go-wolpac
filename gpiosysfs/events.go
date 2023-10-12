@@ -102,7 +102,7 @@ func newEvents(ctx context.Context, f *gpioFile, pin int32) (*FdEvents, error) {
 						}
 						events.events <- &Event{
 							Pin:        pin,
-							RisingEdge: value != 0x30,
+							RisingEdge: value == 0x30,
 							Time:       time.Now(),
 						}
 					}

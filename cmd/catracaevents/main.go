@@ -44,6 +44,7 @@ func main() {
 
 	tick := time.NewTicker(10 * time.Second)
 	defer tick.Stop()
+	defer dev.CancelEntrance()
 
 	for {
 		select {
@@ -53,7 +54,7 @@ func main() {
 			fmt.Println("send allow Entrance")
 			if err := dev.OneEntrance(); err != nil {
 				log.Printf("error allow: %s", err)
-				return
+				// return
 			}
 		case v := <-ch:
 			log.Printf("new event: %v", v)
