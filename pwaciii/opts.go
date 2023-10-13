@@ -46,7 +46,7 @@ func (e EstadoBloqueo) String() string {
 
 func DefaultsOptions() Opts {
 	return Opts{
-		Port:          "ttyUSB)",
+		Port:          "/dev/ttyUSB2",
 		EstadoBloqueo: int(EntradaLibreSalidaBloqueada),
 	}
 }
@@ -62,3 +62,17 @@ func (opts Opts) String() string {
 }
 
 type OptsFunc func(*Opts)
+
+func WithPort(port string) func(*Opts) {
+
+	return func(o *Opts) {
+		o.Port = port
+	}
+}
+
+func WithEstadoBloque(estado EstadoBloqueo) func(*Opts) {
+
+	return func(o *Opts) {
+		o.EstadoBloqueo = int(estado)
+	}
+}

@@ -1,11 +1,14 @@
 package pwaciii
 
-import "fmt"
+import (
+	"encoding/binary"
+	"fmt"
+)
 
 func (d *Device) OneEntrance() error {
 
 	cmd := LiberaUnaEntrada
-	if _, err := sendCommand(d.portserial, cmd.WaitResponse(), cmd.WaitAck(), byte(cmd), nil); err != nil {
+	if _, err := sendCommand(d.portserial, cmd.WaitResponse(), cmd.WaitAck(), byte(cmd), []byte("permitir")); err != nil {
 		return err
 	}
 	return nil
@@ -17,8 +20,23 @@ type EstadoPaso string
 const (
 	EsperandoPasodeUsuario EstadoPaso = "W"
 	PasodeUsuarioDesistido EstadoPaso = "T"
-	OcurrioUnPaso          EstadoPaso = "Y"
+	OcurrioUnPasoDeEntrada EstadoPaso = "Y"
+	OcurrioUnPasoDeSalida  EstadoPaso = "X"
 )
+
+var estadoNames = map[EstadoPaso]string{
+	EsperandoPasodeUsuario: "EsperandoPasodeUsuario",
+	PasodeUsuarioDesistido: "PasodeUsuarioDesistido",
+	OcurrioUnPasoDeEntrada: "OcurrioUnPasoDeEntrada",
+	OcurrioUnPasoDeSalida:  "OcurrioUnPasoDeSalida",
+}
+
+func (estado EstadoPaso) String() string {
+	if name, ok := estadoNames[estado]; ok {
+		return name
+	}
+	return ""
+}
 
 func (d *Device) SolicitaEstadoEntrada() (EstadoPaso, error) {
 
@@ -28,7 +46,9 @@ func (d *Device) SolicitaEstadoEntrada() (EstadoPaso, error) {
 		return "", err
 	}
 	if len(resp) < 2 {
-		return "", fmt.Errorf("cmd (%02X) != %02X", byte(cmd), resp[0])
+		return "", fmt.Errorf("unknown response [%X]", resp)
+	} else if resp[0] != byte(cmd) {
+		return "", fmt.Errorf("cmd (%02X) != %02X, unknown response [%X]", byte(cmd), resp[0], resp)
 	}
 
 	result := EstadoPaso(resp[1])
@@ -36,7 +56,7 @@ func (d *Device) SolicitaEstadoEntrada() (EstadoPaso, error) {
 	switch EstadoPaso(resp[1]) {
 	case EsperandoPasodeUsuario:
 	case PasodeUsuarioDesistido:
-	case OcurrioUnPaso:
+	case OcurrioUnPasoDeEntrada:
 	default:
 		return "", fmt.Errorf("unkown response %q", resp)
 	}
@@ -52,7 +72,9 @@ func (d *Device) SolicitaEstadoSalida() (EstadoPaso, error) {
 		return "", err
 	}
 	if len(resp) < 2 {
-		return "", fmt.Errorf("cmd (%02X) != %02X", byte(cmd), resp[0])
+		return "", fmt.Errorf("unknown response [%X]", resp)
+	} else if resp[0] != byte(cmd) {
+		return "", fmt.Errorf("cmd (%02X) != %02X, unknown response [%X]", byte(cmd), resp[0], resp)
 	}
 
 	result := EstadoPaso(resp[1])
@@ -60,7 +82,7 @@ func (d *Device) SolicitaEstadoSalida() (EstadoPaso, error) {
 	switch EstadoPaso(resp[1]) {
 	case EsperandoPasodeUsuario:
 	case PasodeUsuarioDesistido:
-	case OcurrioUnPaso:
+	case OcurrioUnPasoDeSalida:
 	default:
 		return "", fmt.Errorf("unkown response %q", resp)
 	}
@@ -68,26 +90,21 @@ func (d *Device) SolicitaEstadoSalida() (EstadoPaso, error) {
 	return result, nil
 }
 
-func (d *Device) Solicitacontadores() (EstadoPaso, error) {
+func (d *Device) SolicitaContadores() (int64, int64, error) {
 
-	cmd := SolicitaInformacionUsuarioPasandoSalida
+	cmd := ColetaContadoresInternosPWAC3
 	resp, err := sendCommand(d.portserial, cmd.WaitResponse(), cmd.WaitAck(), byte(cmd), nil)
 	if err != nil {
-		return "", err
+		return 0, 0, err
 	}
-	if len(resp) < 2 {
-		return "", fmt.Errorf("cmd (%02X) != %02X", byte(cmd), resp[0])
-	}
-
-	result := EstadoPaso(resp[1])
-
-	switch EstadoPaso(resp[1]) {
-	case EsperandoPasodeUsuario:
-	case PasodeUsuarioDesistido:
-	case OcurrioUnPaso:
-	default:
-		return "", fmt.Errorf("unkown response %q", resp)
+	if len(resp) < 9 {
+		return 0, 0, fmt.Errorf("unknown response [%X]", resp)
+	} else if resp[0] != byte(cmd) {
+		return 0, 0, fmt.Errorf("cmd (%02X) != %02X, unknown response [%X]", byte(cmd), resp[0], resp)
 	}
 
-	return result, nil
+	entradas := binary.LittleEndian.Uint32(resp[1:5])
+	salidas := binary.LittleEndian.Uint32(resp[5:9])
+
+	return int64(entradas), int64(salidas), nil
 }
