@@ -23,7 +23,7 @@ func formatapdu(data []byte) []byte {
 
 	for _, b := range data {
 		check ^= b
-		fmt.Printf("check: %X\n", check)
+		// fmt.Printf("check: %X\n", check)
 		if b == DLE {
 			message = append(message, DLE)
 		}
@@ -91,6 +91,8 @@ func sendCommand(port io.ReadWriteCloser, waitResponse, waitAck bool, cmd byte, 
 				return
 			}
 
+			fmt.Printf("apdu response: [% 02X]\n", buff[:n])
+
 			select {
 			case ch <- struct {
 				data []byte
@@ -112,6 +114,8 @@ func sendCommand(port io.ReadWriteCloser, waitResponse, waitAck bool, cmd byte, 
 	if _, err := port.Write(apdu); err != nil {
 		return nil, err
 	}
+
+	fmt.Printf("apdu to send: [% 02X]\n", apdu)
 
 	if waitResponse || waitAck {
 		for v := range ch {
