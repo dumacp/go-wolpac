@@ -19,6 +19,7 @@ func init() {
 }
 
 func main() {
+	flag.Parse()
 
 	fmt.Printf("default opts: %s\n", pwaciii.DefaultsOptions())
 
