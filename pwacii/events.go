@@ -187,63 +187,67 @@ func (d *Device) Events(ctx context.Context) chan Event {
 				fmt.Printf("unkown data: [%X] (%q)\n", data[0], data[0])
 				continue
 			}
-			var evt EventType
-			dataevt := string(data[1:])
-			switch dataevt {
-			case Input.Code():
-				evt = Input
-			case Output.Code():
-				evt = Output
-			case HalfTurnStart.Code():
-				evt = HalfTurnStart
-			case HalfTurnEnd.Code():
-				evt = HalfTurnEnd
-			case SensorAlarmActived.Code():
-				evt = SensorAlarmActived
-			case SensorAlarmDisabled.Code():
-				evt = SensorAlarmDisabled
-			case AccessTimeout.Code():
-				evt = AccessTimeout
-			default:
-				if len(data[1:]) > 2 {
-					switch string(data[1:3]) {
-					case ConfResponse.Code():
-						evt = ConfResponse
-						select {
-						case <-contxt.Done():
-							return
-						case d.chCmdResp <- Event{
-							EventType: evt,
-							Data:      dataevt,
-						}:
+			func() {
+				var evt EventType
+				dataevt := string(data[1:])
+				switch dataevt {
+				case Input.Code():
+					evt = Input
+				case Output.Code():
+					evt = Output
+				case HalfTurnStart.Code():
+					evt = HalfTurnStart
+				case HalfTurnEnd.Code():
+					evt = HalfTurnEnd
+				case SensorAlarmActived.Code():
+					evt = SensorAlarmActived
+				case SensorAlarmDisabled.Code():
+					evt = SensorAlarmDisabled
+				case AccessTimeout.Code():
+					evt = AccessTimeout
+				default:
+					if len(data[1:]) > 2 {
+						switch string(data[1:3]) {
+						case ConfResponse.Code():
+							evt = ConfResponse
+							select {
+							case <-contxt.Done():
+								return
+							case d.chCmdResp <- Event{
+								EventType: evt,
+								Data:      dataevt,
+							}:
+								return
+							default:
+							}
+						case StatusReponse.Code():
+							evt = StatusReponse
+							select {
+							case <-contxt.Done():
+								return
+							case d.chCmdResp <- Event{
+								EventType: evt,
+								Data:      dataevt,
+							}:
+								return
+							default:
+							}
 						default:
 						}
-					case StatusReponse.Code():
-						evt = StatusReponse
-						select {
-						case <-contxt.Done():
-							return
-						case d.chCmdResp <- Event{
-							EventType: evt,
-							Data:      dataevt,
-						}:
-						default:
-						}
-					default:
 					}
 				}
-			}
-			// fmt.Println("send data")
-			select {
-			case <-contxt.Done():
-				return
-			case ch <- Event{
-				EventType: evt,
-				Data:      dataevt,
-			}:
-			case <-time.After(10 * time.Millisecond):
-				fmt.Println("timeout write listen events")
-			}
+				// fmt.Println("send data")
+				select {
+				case <-contxt.Done():
+					return
+				case ch <- Event{
+					EventType: evt,
+					Data:      dataevt,
+				}:
+				case <-time.After(10 * time.Millisecond):
+					fmt.Println("timeout write listen events")
+				}
+			}()
 
 		}
 	}()

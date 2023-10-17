@@ -66,12 +66,12 @@ func (c Command) String() string {
 
 func (c Command) WaitResponse() bool {
 
-	return false
+	return c.WithResponse()
 }
 
 func (c Command) WaitAck() bool {
 
-	return false
+	return c.WithAck()
 }
 
 func (c Command) WithAck() bool {

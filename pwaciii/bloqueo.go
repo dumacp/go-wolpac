@@ -5,7 +5,7 @@ import "fmt"
 func (d *Device) SolicitaEstadoBloqueo() (EstadoBloqueo, error) {
 
 	cmd := SolicitaEstadoBloqueo
-	resp, err := sendCommand(d.portserial, cmd.WaitResponse(), cmd.WaitAck(), byte(cmd), nil)
+	resp, err := sendCommand(d, cmd, nil)
 	if err != nil {
 		return -1, err
 	}
@@ -35,7 +35,7 @@ func (d *Device) SolicitaEstadoBloqueo() (EstadoBloqueo, error) {
 func (d *Device) AlteraEstadoBloqueo(estado EstadoBloqueo) error {
 
 	cmd := AlteraEstadoBloqueo
-	if _, err := sendCommand(d.portserial, cmd.WaitResponse(), cmd.WaitAck(), byte(cmd), []byte{byte(estado)}); err != nil {
+	if _, err := sendCommand(d, cmd, []byte{byte(estado)}); err != nil {
 		return err
 	}
 	return nil

@@ -3,7 +3,7 @@ package pwaciii
 import (
 	"bufio"
 	"bytes"
-	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -52,108 +52,134 @@ func extractData(apdu []byte) []byte {
 
 }
 
-func sendCommand(port io.ReadWriteCloser, waitResponse, waitAck bool, cmd byte, data []byte) ([]byte, error) {
+func sendCommand(d *Device, cmd Command, data []byte) ([]byte, error) {
 
-	ctx, cancel := context.WithTimeout(context.TODO(), READTIMEOT+10*time.Millisecond)
-	defer cancel()
+	port := d.portserial
 
-	// type response struct {
-	// 	data []byte
-	// 	err  error
+	// w := bufio.NewWriter(d.Port)
+	// r := bufio.NewReader(d.Port)
+	// w := d.Port
+	// r := d.Port
+
+	fmt.Printf("cmd to send: %02X, [%X]\n", cmd, data)
+
+	// if n, err := w.Write([]byte(s)); err != nil {
+	// 	return "", err
+	// } else {
+	// 	fmt.Printf("%d bytes writtern\n", n)
 	// }
-	var ch chan struct {
+
+	// buff := make([]byte, 1024)
+	// if n, err := r.Read(buff); err != nil && n == 0 {
+	// 	return "", err
+	// } else {
+	// 	fmt.Printf("%d bytes read: %X\n", n, buff[:n])
+	// }
+
+	// return string(buff), nil
+
+	/**/
+
+	type response struct {
 		data []byte
 		err  error
 	}
-	if waitResponse {
-		r := bufio.NewReader(port)
-		ch = make(chan struct {
-			data []byte
-			err  error
-		})
 
-		go func() {
-			defer close(ch)
+	ch := make(chan response)
 
+	go func() {
+
+		defer close(ch)
+		// r := bufio.NewReader(d.Port)
+		var r *bufio.Reader
+
+		const maxErrors int = 3
+		countErrors := 0
+		funcResp := func() ([]byte, error) {
+			if r == nil {
+				r = bufio.NewReader(port)
+			}
+			// resp, err := r.ReadString('\n')
+			t0 := time.Now()
 			buff := make([]byte, 32)
 			n, err := r.Read(buff)
 			if err != nil {
-				select {
-				case ch <- struct {
-					data []byte
-					err  error
-				}{
-					data: nil,
-					err:  err,
-				}:
-				case <-ctx.Done():
+				if !errors.Is(err, io.EOF) {
+					return nil, fmt.Errorf("error read listen events: %s", err)
+
+				} else if time.Since(t0) < READTIMEOUT/10 {
+					countErrors++
+					if countErrors > maxErrors {
+						return nil, fmt.Errorf("%d errors io.EOF read listen events", countErrors)
+					}
+					return nil, fmt.Errorf("readTimeout (%s) nil response", err)
 				}
-				return
+			} else {
+				countErrors = 0
 			}
 
-			fmt.Printf("apdu response: [% 02X]\n", buff[:n])
-
-			select {
-			case ch <- struct {
-				data []byte
-				err  error
-			}{
-				data: buff[:n],
-				err:  nil,
-			}:
-			case <-ctx.Done():
-			}
-		}()
-	}
-
-	datacmd := make([]byte, 0)
-	datacmd = append(datacmd, cmd)
-	datacmd = append(datacmd, data...)
-
-	apdu := formatapdu(datacmd)
-	if _, err := port.Write(apdu); err != nil {
-		return nil, err
-	}
-
-	fmt.Printf("apdu to send: [% 02X]\n", apdu)
-
-	if waitResponse || waitAck {
-		for v := range ch {
-			if v.err != nil {
-				return nil, v.err
-			}
-			if len(v.data) <= 0 {
-				return nil, v.err
-			}
-			data := extractData(v.data)
-
-			if len(data) <= 0 {
-				if waitAck {
-					return nil, fmt.Errorf("without ACK response")
-				}
-				if waitResponse {
-					return nil, fmt.Errorf("without response")
-				}
+			fmt.Printf("data raw: %02X\n", buff[:n])
+			if n < 1 {
 				return nil, nil
 			}
 
-			if waitAck {
-				if data[len(data)-1] == ACK {
-					return nil, nil
-				} else if data[len(data)-1] == NAK {
-					return nil, fmt.Errorf("NAK response")
-				} else {
-					return nil, fmt.Errorf("unkown response: [%X]", data)
-				}
-			}
-			if waitResponse {
-				if data[0] != byte(cmd) {
-					return nil, fmt.Errorf("unkown response: [%X], cmd (%02x) != (%02X)", data, byte(cmd), data[0])
-				}
-				return data[1:], nil
-			}
-		}
-	}
+			temp := extractData(buff[:n])
+			return temp, nil
 
-	return nil, nil
+		}
+
+		chresponse, err := func() ([]byte, error) {
+			if (cmd.WaitResponse() || cmd.WaitAck()) && (d.chCmdResp == nil) {
+				if resp, err := funcResp(); err != nil {
+					return resp, err
+				} else {
+					return resp, nil
+				}
+			}
+			select {
+
+			case v, ok := <-d.chCmdResp:
+				if !ok && (cmd.WithResponse() || cmd.WithAck()) {
+					if resp, err := funcResp(); err != nil {
+						return resp, err
+					} else {
+						return resp, nil
+					}
+				}
+				if len(v.Data) < 2 {
+					break
+				}
+				if v.Data[0] != byte(cmd) {
+					return nil, fmt.Errorf("cmd response different to cmd: %q != %q, data: %02X",
+						byte(cmd), byte(v.EventType), v.Data)
+				}
+				return []byte(v.Data[1:]), nil
+			case <-time.After(300 * time.Millisecond):
+				return nil, fmt.Errorf("timeout read")
+			}
+			return nil, nil
+		}()
+		select {
+		case ch <- response{
+			data: chresponse,
+			err:  err,
+		}:
+		case <-time.After(10 * time.Millisecond):
+			fmt.Printf("response command (%q) without receiver", cmd.String())
+		}
+	}()
+
+	apdu := make([]byte, 0)
+	apdu = append(apdu, byte(cmd))
+	apdu = append(apdu, data...)
+	if n, err := port.Write(apdu); err != nil {
+		return nil, err
+	} else if n <= 0 {
+		return nil, fmt.Errorf("write 0 bytes to serial port")
+	}
+	for v := range ch {
+		return v.data, v.err
+	}
+	return nil, fmt.Errorf("unkown error")
+	/**/
 }

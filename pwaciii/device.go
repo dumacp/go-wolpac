@@ -2,19 +2,23 @@ package pwaciii
 
 import (
 	"io"
+	"sync"
 	"time"
 
 	"github.com/tarm/serial"
 )
 
 const (
-	READTIMEOT = 100 * time.Millisecond
+	READTIMEOUT = 100 * time.Millisecond
 )
 
 type Device struct {
 	Opts
 	confserial *serial.Config
 	portserial io.ReadWriteCloser
+	chCmdResp  chan Event
+	mux        sync.Mutex
+	muxRwrite  sync.Mutex
 }
 
 func New(opts ...OptsFunc) Device {
@@ -26,7 +30,7 @@ func New(opts ...OptsFunc) Device {
 	c := serial.Config{
 		Name:        o.Port,
 		Baud:        19200,
-		ReadTimeout: READTIMEOT,
+		ReadTimeout: READTIMEOUT,
 	}
 
 	return Device{
@@ -52,7 +56,7 @@ func (d *Device) Open(opts ...OptsFunc) error {
 }
 
 func (d *Device) Command(cmd Command, data []byte) ([]byte, error) {
-	resp, err := sendCommand(d.portserial, cmd.WaitResponse(), cmd.WaitAck(), byte(cmd), data)
+	resp, err := sendCommand(d, cmd, data)
 	if err != nil {
 		return nil, err
 	}

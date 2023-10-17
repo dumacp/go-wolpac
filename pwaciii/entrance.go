@@ -8,7 +8,7 @@ import (
 func (d *Device) OneEntrance() error {
 
 	cmd := LiberaUnaEntrada
-	if _, err := sendCommand(d.portserial, cmd.WaitResponse(), cmd.WaitAck(), byte(cmd), []byte("permitir")); err != nil {
+	if _, err := sendCommand(d, cmd, []byte("permitir")); err != nil {
 		return err
 	}
 	return nil
@@ -41,7 +41,7 @@ func (estado EstadoPaso) String() string {
 func (d *Device) SolicitaEstadoEntrada() (EstadoPaso, error) {
 
 	cmd := SolicitaInformacionUsuarioPasandoEntrada
-	resp, err := sendCommand(d.portserial, cmd.WaitResponse(), cmd.WaitAck(), byte(cmd), nil)
+	resp, err := sendCommand(d, cmd, nil)
 	if err != nil {
 		return "", err
 	}
@@ -67,7 +67,7 @@ func (d *Device) SolicitaEstadoEntrada() (EstadoPaso, error) {
 func (d *Device) SolicitaEstadoSalida() (EstadoPaso, error) {
 
 	cmd := SolicitaInformacionUsuarioPasandoSalida
-	resp, err := sendCommand(d.portserial, cmd.WaitResponse(), cmd.WaitAck(), byte(cmd), nil)
+	resp, err := sendCommand(d, cmd, nil)
 	if err != nil {
 		return "", err
 	}
@@ -93,7 +93,7 @@ func (d *Device) SolicitaEstadoSalida() (EstadoPaso, error) {
 func (d *Device) SolicitaContadores() (int64, int64, error) {
 
 	cmd := ColetaContadoresInternosPWAC3
-	resp, err := sendCommand(d.portserial, cmd.WaitResponse(), cmd.WaitAck(), byte(cmd), nil)
+	resp, err := sendCommand(d, cmd, nil)
 	if err != nil {
 		return 0, 0, err
 	}
