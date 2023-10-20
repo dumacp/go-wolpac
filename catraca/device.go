@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"sync"
+	"time"
 
 	"github.com/dumacp/go-wolpac/gpiosysfs"
 )
@@ -66,7 +67,8 @@ func (d *Device) OneEntrance() error {
 	}
 	select {
 	case d.activeAllowchannel <- struct{}{}:
-	default:
+	case <-time.After(1 * time.Second):
+		return fmt.Errorf("turnstile active timeout")
 	}
 	cmdEnable := fmt.Sprintf("echo 1 > /sys/class/leds/%s/brightness", d.SignalLed)
 	funcCommand := func() ([]byte, error) {
