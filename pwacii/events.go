@@ -14,6 +14,7 @@ type EventType int
 type Event struct {
 	EventType EventType
 	Data      string
+	Error     error
 }
 
 const (
@@ -99,26 +100,15 @@ func (d *Device) Events(ctx context.Context) chan Event {
 		countErrors := 0
 
 		for {
+			t0 := time.Now()
 			data, err := func() ([]byte, error) {
 				d.mux.Lock()
 				defer d.mux.Unlock()
 
-				t0 := time.Now()
-
 				s := bufio.NewReader(d.Port)
 				b0, err := s.ReadByte()
 				if err != nil {
-					if !errors.Is(err, io.EOF) {
-						return nil, fmt.Errorf("error read listen events: %s", err)
-
-					} else if time.Since(t0) < READTIMEOUT/10 {
-						countErrors++
-						if countErrors > maxErrors {
-							return nil, fmt.Errorf("%d errors io.EOF read listen events", countErrors)
-
-						}
-						return nil, nil
-					}
+					return nil, fmt.Errorf("error read listen events: %w", err)
 				} else {
 					countErrors = 0
 				}
@@ -127,25 +117,16 @@ func (d *Device) Events(ctx context.Context) chan Event {
 				} else if b0 == '%' {
 					return []byte{'%'}, nil
 				} else if b0 != '!' {
-					return nil, nil
+					return nil, fmt.Errorf("wrong prefix in response: %q, %w", b0, ErrorRecv)
 				}
 				datawithdelimiter, err := s.ReadBytes('\n')
 				if err != nil {
-					if !errors.Is(err, io.EOF) {
-						return nil, fmt.Errorf("error read listen events: %s", err)
+					return nil, fmt.Errorf("error read listen events: %w", err)
 
-					} else if time.Since(t0) < READTIMEOUT/10 {
-						countErrors++
-						if countErrors > maxErrors {
-							return nil, fmt.Errorf("%d errors io.EOF read listen events", countErrors)
-
-						}
-						return nil, nil
-					}
 				} else {
 					countErrors = 0
 				}
-				fmt.Printf("data raw: %02X%02X\n", b0, datawithdelimiter)
+				fmt.Printf("turnstile data raw: %02X%02X\n", b0, datawithdelimiter)
 				if len(datawithdelimiter) < 1 {
 					return nil, nil
 				}
@@ -156,9 +137,31 @@ func (d *Device) Events(ctx context.Context) chan Event {
 			}()
 			if err != nil {
 				fmt.Println(err)
-				return
+				select {
+				case <-contxt.Done():
+					return
+				case d.chCmdResp <- Event{
+					EventType: 0,
+					Data:      "",
+					Error:     err,
+				}:
+				default:
+				}
+				if errors.Is(err, ErrorRecv) {
+					continue
+				} else if !errors.Is(err, io.EOF) {
+					fmt.Println(err)
+					return
+				} else if time.Since(t0) < READTIMEOUT/10 {
+					countErrors++
+					if countErrors > maxErrors {
+						return
+					}
+				}
+				continue
 			}
 			if len(data) > 0 {
+				fmt.Printf("turnstile data raw: %q\n", data)
 				if data[0] == '@' {
 					select {
 					case <-contxt.Done():
@@ -167,12 +170,23 @@ func (d *Device) Events(ctx context.Context) chan Event {
 					default:
 					}
 					continue
-				}
-				if data[0] == '%' {
+				} else if data[0] == '%' {
 					select {
 					case <-contxt.Done():
 						return
 					case d.chCmdAck <- 0:
+					default:
+					}
+					continue
+				} else if data[0] != '!' {
+					select {
+					case <-contxt.Done():
+						return
+					case d.chCmdResp <- Event{
+						EventType: 0,
+						Data:      string(data),
+						Error:     fmt.Errorf("unkown data: [%X] (%q)", data[0], data[0]),
+					}:
 					default:
 					}
 					continue
@@ -183,8 +197,17 @@ func (d *Device) Events(ctx context.Context) chan Event {
 			}
 			// fmt.Printf("data: %s\n", data)
 
-			if len(data) < 3 || data[0] != '!' {
-				fmt.Printf("unkown data: [%X] (%q)\n", data[0], data[0])
+			if len(data) < 3 {
+				select {
+				case <-contxt.Done():
+					return
+				case d.chCmdResp <- Event{
+					EventType: 0,
+					Data:      "",
+					Error:     fmt.Errorf("unkown data: [%X] (%q)", data[0], data[0]),
+				}:
+				default:
+				}
 				continue
 			}
 			func() {

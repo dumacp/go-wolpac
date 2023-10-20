@@ -1,6 +1,8 @@
 package pwacii
 
-import "errors"
+import (
+	"fmt"
+)
 
 type EntranceStatus string
 
@@ -41,8 +43,8 @@ type Status struct {
 }
 
 func ParseStatus(data string) (Status, error) {
-	if len(data) != 4 {
-		return Status{}, errors.New("invalid data length")
+	if len(data) < 4 {
+		return Status{}, fmt.Errorf("invalid data length, %q", data)
 	}
 
 	var status Status
@@ -54,7 +56,7 @@ func ParseStatus(data string) (Status, error) {
 	case 'I':
 		status.EntranceStatus = XI
 	default:
-		return Status{}, errors.New("invalid entrance status")
+		return Status{}, fmt.Errorf("invalid entrance status, %q", data)
 	}
 
 	switch data[1] {
@@ -65,7 +67,7 @@ func ParseStatus(data string) (Status, error) {
 	case 'I':
 		status.ExitStatus = YI
 	default:
-		return Status{}, errors.New("invalid exit status")
+		return Status{}, fmt.Errorf("invalid exit status, %q", data)
 	}
 
 	switch data[2] {
@@ -78,7 +80,7 @@ func ParseStatus(data string) (Status, error) {
 	case 'I':
 		status.MovementStatus = ZI
 	default:
-		return Status{}, errors.New("invalid movement status")
+		return Status{}, fmt.Errorf("invalid movement status, %q", data)
 	}
 
 	switch data[3] {
@@ -93,7 +95,7 @@ func ParseStatus(data string) (Status, error) {
 	case 'I':
 		status.MovementProgress = WI
 	default:
-		return Status{}, errors.New("invalid movement progress")
+		return Status{}, fmt.Errorf("invalid movement progress, %q", data)
 	}
 
 	return status, nil
