@@ -12,10 +12,12 @@ import (
 
 var (
 	portpath string
+	timeout  int
 )
 
 func init() {
-	flag.StringVar(&portpath, "port", "/dev/ttyUSB2", "path to serial port device")
+	flag.StringVar(&portpath, "port", "/dev/ttyUSB0", "path to serial port device")
+	flag.IntVar(&timeout, "timeout", 10, "send comannd timeout in second")
 }
 
 func main() {
@@ -32,7 +34,7 @@ func main() {
 
 	tick0 := time.NewTimer(5 * time.Second)
 	defer tick0.Stop()
-	tick := time.NewTicker(60 * time.Second)
+	tick := time.NewTicker(time.Duration(timeout) * time.Second)
 	defer tick.Stop()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -56,7 +58,14 @@ func main() {
 				fmt.Printf("error command (%q): %s\n", pwacii.OneEntryAllow, err)
 				break
 			}
+			time.Sleep(1 * time.Second)
 			fmt.Printf("command (%q) response: %q\n", pwacii.OneEntryAllow, v)
+			v1, err := dev.Command(pwacii.StatusRequest, "")
+			if err != nil {
+				fmt.Printf("error command (%q): %s\n", pwacii.OneEntryAllow, err)
+				break
+			}
+			fmt.Printf("command (%q) response: %q\n", pwacii.OneEntryAllow, v1)
 		case <-tick.C:
 			v, err := dev.Command(pwacii.OneEntryAllow, "")
 			if err != nil {
@@ -64,6 +73,14 @@ func main() {
 				break
 			}
 			fmt.Printf("command (%q) response: %q\n", pwacii.OneEntryAllow, v)
+			time.Sleep(1 * time.Second)
+			fmt.Printf("command (%q) response: %q\n", pwacii.OneEntryAllow, v)
+			v1, err := dev.Command(pwacii.StatusRequest, "")
+			if err != nil {
+				fmt.Printf("error command (%q): %s\n", pwacii.StatusRequest, err)
+				break
+			}
+			fmt.Printf("command (%q) response: %q\n", pwacii.StatusRequest, v1)
 		}
 	}
 }

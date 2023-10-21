@@ -126,7 +126,7 @@ func (d *Device) Events(ctx context.Context) chan Event {
 				} else {
 					countErrors = 0
 				}
-				fmt.Printf("turnstile data raw: %02X%02X\n", b0, datawithdelimiter)
+				// fmt.Printf("turnstile data raw: %02X%02X\n", b0, datawithdelimiter)
 				if len(datawithdelimiter) < 1 {
 					return nil, nil
 				}
