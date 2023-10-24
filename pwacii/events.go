@@ -116,13 +116,16 @@ func (d *Device) Events(ctx context.Context) chan Event {
 					return []byte{'@'}, nil
 				} else if b0 == '%' {
 					return []byte{'%'}, nil
+				} else if b0 == '\n' {
+					return nil, nil
+				} else if b0 == '\r' {
+					return nil, nil
 				} else if b0 != '!' {
 					return nil, fmt.Errorf("wrong prefix in response: %q, %w", b0, ErrorRecv)
 				}
 				datawithdelimiter, err := s.ReadBytes('\n')
 				if err != nil {
 					return nil, fmt.Errorf("error read listen events: %w", err)
-
 				} else {
 					countErrors = 0
 				}
@@ -131,12 +134,12 @@ func (d *Device) Events(ctx context.Context) chan Event {
 					return nil, nil
 				}
 				temp := make([]byte, 0)
-				temp = append(temp, b0)
+				// temp = append(temp, b0)
 				temp = append(temp, datawithdelimiter[:len(datawithdelimiter)-1]...)
 				return temp, nil
 			}()
 			if err != nil {
-				fmt.Println(err)
+
 				select {
 				case <-contxt.Done():
 					return
@@ -148,11 +151,12 @@ func (d *Device) Events(ctx context.Context) chan Event {
 				default:
 				}
 				if errors.Is(err, ErrorRecv) {
-					continue
+					fmt.Println(err)
 				} else if !errors.Is(err, io.EOF) {
 					fmt.Println(err)
 					return
 				} else if time.Since(t0) < READTIMEOUT/10 {
+					fmt.Println(err)
 					countErrors++
 					if countErrors > maxErrors {
 						return
@@ -161,7 +165,7 @@ func (d *Device) Events(ctx context.Context) chan Event {
 				continue
 			}
 			if len(data) > 0 {
-				fmt.Printf("turnstile data raw: %q\n", data)
+				// fmt.Printf("turnstile data raw: %q\n", data)
 				if data[0] == '@' {
 					select {
 					case <-contxt.Done():
@@ -178,18 +182,6 @@ func (d *Device) Events(ctx context.Context) chan Event {
 					default:
 					}
 					continue
-				} else if data[0] != '!' {
-					select {
-					case <-contxt.Done():
-						return
-					case d.chCmdResp <- Event{
-						EventType: 0,
-						Data:      string(data),
-						Error:     fmt.Errorf("unkown data: [%X] (%q)", data[0], data[0]),
-					}:
-					default:
-					}
-					continue
 				}
 			} else {
 				// fmt.Println("without data")
@@ -197,14 +189,14 @@ func (d *Device) Events(ctx context.Context) chan Event {
 			}
 			// fmt.Printf("data: %s\n", data)
 
-			if len(data) < 3 {
+			if len(data) < 2 {
 				select {
 				case <-contxt.Done():
 					return
 				case d.chCmdResp <- Event{
 					EventType: 0,
 					Data:      "",
-					Error:     fmt.Errorf("unkown data: [%X] (%q)", data[0], data[0]),
+					Error:     fmt.Errorf("unkown data: [%X] (%q)", data, data),
 				}:
 				default:
 				}
@@ -212,7 +204,7 @@ func (d *Device) Events(ctx context.Context) chan Event {
 			}
 			func() {
 				var evt EventType
-				dataevt := string(data[1:])
+				dataevt := string(data[:])
 				switch dataevt {
 				case Input.Code():
 					evt = Input
@@ -229,8 +221,8 @@ func (d *Device) Events(ctx context.Context) chan Event {
 				case AccessTimeout.Code():
 					evt = AccessTimeout
 				default:
-					if len(data[1:]) > 2 {
-						switch string(data[1:3]) {
+					if len(data[:]) > 2 {
+						switch string(data[:2]) {
 						case ConfResponse.Code():
 							evt = ConfResponse
 							select {

@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	READTIMEOUT = 100 * time.Millisecond
+	READTIMEOUT = 300 * time.Millisecond
 )
 
 type Conf struct {
@@ -94,7 +94,7 @@ func command(d *Device, cmd CommandType, data string) (string, error) {
 	// w := d.Port
 	// r := d.Port
 	s := fmt.Sprintf("$%s%s\r\n", cmd.Code(), data)
-	fmt.Printf("cmd to send: %q, %X\n", s, s)
+	// fmt.Printf("cmd to send: %q, %X\n", s, s)
 
 	// if n, err := w.Write([]byte(s)); err != nil {
 	// 	return "", err
@@ -129,64 +129,49 @@ func command(d *Device, cmd CommandType, data string) (string, error) {
 		const maxErrors int = 3
 		countErrors := 0
 		funcResp := func(awaitResponse bool) ([]byte, error) {
+			d.mux.Lock()
+			defer d.mux.Unlock()
 			if r == nil {
 				r = bufio.NewReader(d.Port)
 			}
 			// resp, err := r.ReadString('\n')
-			t0 := time.Now()
-			b0, err := r.ReadByte()
-			if err != nil {
-				if !errors.Is(err, io.EOF) {
-					return nil, fmt.Errorf("error read listen events: %s", err)
 
-				} else if time.Since(t0) < READTIMEOUT/10 {
-					countErrors++
-					if countErrors > maxErrors {
-						return nil, fmt.Errorf("%d errors io.EOF read listen events", countErrors)
+			var resp []byte
+			for range make([]int, 3) {
+				t0 := time.Now()
+				var err error
+				resp, err = r.ReadBytes('\n')
+				// fmt.Printf("%q, %s\n", resp, err)
+				if err != nil {
+					if !errors.Is(err, io.EOF) {
+						return nil, fmt.Errorf("error read listen events: %s", err)
+					} else if time.Since(t0) < READTIMEOUT/10 {
+						countErrors++
+						if countErrors > maxErrors {
+							return nil, fmt.Errorf("%d errors io.EOF read listen events", countErrors)
+						}
+						return nil, fmt.Errorf("readTimeout (%s) nil response", err)
 					}
-					return nil, fmt.Errorf("readTimeout (%s) nil response", err)
-				}
-			} else {
-				countErrors = 0
-			}
-			if b0 == '%' {
-				return nil, fmt.Errorf("wrong command")
-			}
-			if !awaitResponse {
-				if b0 == '@' {
-					return nil, nil
-				} else {
-					return nil, fmt.Errorf("wrong response (%q)", b0)
-				}
-			}
-
-			t0 = time.Now()
-			resp, err := r.ReadBytes('\n')
-			if err != nil {
-				if !errors.Is(err, io.EOF) {
-					return nil, fmt.Errorf("error read listen events: %s", err)
-
-				} else if time.Since(t0) < READTIMEOUT/10 {
-					countErrors++
-					if countErrors > maxErrors {
-						return nil, fmt.Errorf("%d errors io.EOF read listen events", countErrors)
-
+					if len(resp) <= 0 {
+						continue
 					}
-					return nil, fmt.Errorf("readTimeout (%s) nil response", err)
+					break
 				}
-			} else {
 				countErrors = 0
+				if len(resp) <= 1 {
+					continue
+				}
+				break
 			}
+
 			if len(resp) <= 0 {
 				return resp, fmt.Errorf("nil response: %q", resp)
 			}
-			if b0 == '!' {
-				return resp[:], nil
-			}
-			if len(resp) < 2 {
-				return resp[:], fmt.Errorf("unkown response: %q", resp)
-			}
-			if resp[0] == '!' {
+			if resp[0] == '@' && !awaitResponse {
+				return nil, nil
+			} else if resp[0] == '%' {
+				return nil, fmt.Errorf("no ack response")
+			} else if resp[0] == '!' && len(resp) > 1 {
 				return resp[1:], nil
 			}
 			return nil, fmt.Errorf("unkown response: %q", resp)
@@ -221,6 +206,9 @@ func command(d *Device, cmd CommandType, data string) (string, error) {
 					} else {
 						return resp, nil
 					}
+				}
+				if v.Error != nil {
+					return nil, v.Error
 				}
 				if !strings.EqualFold(v.EventType.Code(), cmd.Code()) {
 					return nil, fmt.Errorf("cmd response different to cmd: %q != %q, data: %q",

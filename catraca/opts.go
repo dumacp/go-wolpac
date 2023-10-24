@@ -13,7 +13,7 @@ type Opts struct {
 	SignalGpio           int           `json:"signalgpio"`
 	InputSysfsT1         int           `json:"gpioinput1"`
 	InputSysfsT2         int           `json:"gpioinput2"`
-	TimeoutEntrance      time.Duration `json:"timeoutallow"`
+	TimeoutEntrance      time.Duration `json:"timeoutentrance"`
 	TimeoutTurnAlarm     time.Duration `json:"timeoutalarma"`
 	InputsSysfsActiveLow bool          `json:"gpioactivelow"`
 }
@@ -33,12 +33,12 @@ const (
 
 func DefaultsOptions() Opts {
 	return Opts{
-		SignalLed:            "output1",
-		InputSysfsT1:         86,
-		InputSysfsT2:         85,
-		TimeoutEntrance:      20 * time.Second,
-		InputsSysfsEdge:      Falling,
-		TimeoutTurnAlarm:     5 * time.Second,
+		SignalLed:       "output1",
+		InputSysfsT1:    86,
+		InputSysfsT2:    85,
+		TimeoutEntrance: 20 * time.Second,
+		// InputsSysfsEdge:      Falling,
+		TimeoutTurnAlarm:     15 * time.Second,
 		InputsSysfsActiveLow: true,
 	}
 }

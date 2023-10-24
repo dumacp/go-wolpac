@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os/exec"
 	"sync"
-	"time"
 
 	"github.com/dumacp/go-wolpac/gpiosysfs"
 )
@@ -17,9 +16,9 @@ type Device struct {
 	ctx                context.Context
 	cancel             func()
 	activeAllowchannel chan struct{}
-	activeStep         bool
-	activeAllow        bool
-	mux                sync.Mutex
+	// activeStep         bool
+	activeAllow bool
+	mux         sync.Mutex
 }
 
 func New(opts ...OptsFunc) Device {
@@ -29,7 +28,7 @@ func New(opts ...OptsFunc) Device {
 	}
 	return Device{
 		Opts:               o,
-		activeAllowchannel: make(chan struct{}),
+		activeAllowchannel: make(chan struct{}, 1),
 	}
 }
 
@@ -62,14 +61,14 @@ func (d *Device) Close() error {
 }
 
 func (d *Device) OneEntrance() error {
-	if d.activeStep || d.activeAllow {
+	if d.activeAllow {
 		return fmt.Errorf("turnstile already active")
 	}
 	select {
 	case d.activeAllowchannel <- struct{}{}:
-	case <-time.After(1 * time.Second):
-		return fmt.Errorf("turnstile active timeout")
+	default:
 	}
+	d.activeAllow = true
 	cmdEnable := fmt.Sprintf("echo 1 > /sys/class/leds/%s/brightness", d.SignalLed)
 	funcCommand := func() ([]byte, error) {
 		if out, err := exec.Command("/bin/sh", "-c", cmdEnable).Output(); err != nil {
@@ -87,6 +86,7 @@ func (d *Device) OneEntrance() error {
 }
 
 func (d *Device) CancelEntrance() error {
+	d.activeAllow = false
 	cmdDisable := fmt.Sprintf("echo 0 > /sys/class/leds/%s/brightness", d.SignalLed)
 	funcCommand := func() ([]byte, error) {
 		if out, err := exec.Command("/bin/sh", "-c", cmdDisable).Output(); err != nil {
