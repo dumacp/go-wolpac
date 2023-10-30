@@ -15,6 +15,7 @@ type Opts struct {
 	InputSysfsT2         int           `json:"gpioinput2"`
 	TimeoutEntrance      time.Duration `json:"timeoutentrance"`
 	TimeoutTurnAlarm     time.Duration `json:"timeoutalarma"`
+	NewEvents            bool          `json:"newevents"`
 	InputsSysfsActiveLow bool          `json:"gpioactivelow"`
 }
 
@@ -55,6 +56,12 @@ func (opts Opts) String() string {
 
 type OptsFunc func(*Opts)
 
+func WithNewEvents() OptsFunc {
+	return func(opts *Opts) {
+		opts.NewEvents = true
+	}
+}
+
 func WithSignalTypePathLed(name string) OptsFunc {
 	return func(opts *Opts) {
 		opts.SignalLed = name
@@ -91,5 +98,10 @@ func WithInputsSysfsEdge(edge Edge) OptsFunc {
 func WithTimeoutEntrance(timeout time.Duration) OptsFunc {
 	return func(opts *Opts) {
 		opts.TimeoutEntrance = timeout
+	}
+}
+func WithTimeoutAlarm(timeout time.Duration) OptsFunc {
+	return func(opts *Opts) {
+		opts.TimeoutTurnAlarm = timeout
 	}
 }

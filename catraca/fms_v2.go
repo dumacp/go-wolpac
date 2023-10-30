@@ -9,35 +9,39 @@ import (
 )
 
 const (
-	sStart        = "Sensores_0000"
-	sAllow        = "sAllow"
-	sWait         = "sWait"
-	sCancelAllow  = "sCancelAllow"
-	Sensores_1000 = "Sensores_1000"
-	Sensores_0100 = "Sensores_0100"
-	Sensores_0010 = "Sensores_0010"
-	Sensores_0001 = "Sensores_0001"
-	sOuput        = "sOuput"
-	sInput        = "sInput"
-	sAlarmInput   = "sAlarmInput"
-	sAlarmOutput  = "sAlarmOutput"
-	sAlarmExit    = "sAlarmExit"
-	sInvalidInput = "sInvalidInput"
+	// sStart        = "Sensores_0000"
+	// sAllow        = "sAllow"
+	// sWait         = "sWait"
+	// sCancelAllow  = "sCancelAllow"
+	// Sensores_1000 = "Sensores_1000"
+	// Sensores_0100 = "Sensores_0100"
+	// Sensores_0010 = "Sensores_0010"
+	// Sensores_0001 = "Sensores_0001"
+	// sOuput        = "sOuput"
+	// sInput        = "sInput"
+	// sAlarmInput   = "sAlarmInput"
+	// sAlarmOutput  = "sAlarmOutput"
+	// sAlarmExit    = "sAlarmExit"
+	// sInvalidInput = "sInvalidInput"
+	sPreOutput = "sPreOutput"
+	sOutput1   = "Output1"
+	sOutput2   = "Output2"
 )
 
 const (
-	eS1_0            = "eS1_0"
-	eS1_1            = "eS1_1"
-	eS2_0            = "eS2_0"
-	eS2_1            = "eS2_1"
-	eOneEntrance     = "eOneEntrance"
-	eTimeoutEntrance = "eTimeoutEntrance"
-	eTimeoutAlarm    = "eTimeoutAlarm"
-	eExitCancel      = "eExitCancel"
-	// eExitAlarm       = "eExitAlarm"
+	// eS1_0            = "eS1_0"
+	// eS1_1            = "eS1_1"
+	// eS2_0            = "eS2_0"
+	// eS2_1            = "eS2_1"
+	// eOneEntrance     = "eOneEntrance"
+	// eTimeoutEntrance = "eTimeoutEntrance"
+	// eTimeoutAlarm    = "eTimeoutAlarm"
+	// eExitCancel      = "eExitCancel"
+	eOutput    = "eOutput"
+	eExitAlarm = "eExitAlarm"
 )
 
-func NewFSM(ch chan string) *fsm.FSM {
+func NewFSM_v2(ch chan struct{}) *fsm.FSM {
 
 	callbacksfsm := fsm.Callbacks{
 		"before_event": func(contxt context.Context, e *fsm.Event) {
@@ -55,7 +59,7 @@ func NewFSM(ch chan string) *fsm.FSM {
 		},
 		"enter_state": func(contxt context.Context, e *fsm.Event) {
 			select {
-			case ch <- e.Dst:
+			case ch <- struct{}{}:
 			default:
 			}
 			log.Printf("FSM catraca, state src: %s, state dst: %s", e.Src, e.Dst)
@@ -72,8 +76,10 @@ func NewFSM(ch chan string) *fsm.FSM {
 	rfsm := fsm.NewFSM(
 		sStart,
 		fsm.Events{
-			{Name: eOneEntrance, Src: []string{sStart, sInput, Sensores_0010}, Dst: sAllow},
-			{Name: eS1_1, Src: []string{sAllow, sStart}, Dst: sWait},
+			{Name: eOneEntrance, Src: []string{sStart, sInput, sOuput, Sensores_0010}, Dst: sAllow},
+			// {Name: eS1_1, Src: []string{sAllow}, Dst: sWait},
+			{Name: eS1_1, Src: []string{sStart}, Dst: sPreOutput},
+			{Name: eS1_1, Src: []string{sOuput}, Dst: sPreOutput},
 			{Name: eS2_1, Src: []string{sAllow, sStart}, Dst: sWait},
 
 			{Name: eS1_0, Src: []string{sWait}, Dst: sInput},
@@ -82,10 +88,12 @@ func NewFSM(ch chan string) *fsm.FSM {
 			{Name: eS2_1, Src: []string{sWait}, Dst: sInput}, //
 
 			{Name: eS2_1, Src: []string{sInput}, Dst: Sensores_0010},
-			{Name: eS1_1, Src: []string{sInput}, Dst: Sensores_0010},
+			// {Name: eS1_1, Src: []string{sInput}, Dst: Sensores_0010},
 
 			{Name: eS2_0, Src: []string{Sensores_0010, sInput}, Dst: sStart},
 			{Name: eS1_0, Src: []string{Sensores_0010, sInput}, Dst: sStart},
+
+			{Name: eS1_0, Src: []string{sPreOutput}, Dst: sOuput},
 
 			// {Name: eS2_1, Src: []string{sInput}, Dst: Sensores_0010},
 			// {Name: eS2_0, Src: []string{Sensores_0010, sInput}, Dst: sStart},

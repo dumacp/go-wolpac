@@ -58,7 +58,7 @@ func newEpollEvents(ctx context.Context, pin *Pin) (chan Event, error) {
 	events := make([]syscall.EpollEvent, 1)
 	timeout := 10000 // 10 milisegundos
 
-	ch := make(chan Event)
+	ch := make(chan Event, 1)
 	go func() {
 		defer close(ch)
 		defer syscall.Close(epollFd)

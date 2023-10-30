@@ -1,0 +1,105 @@
+package catraca
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"github.com/looplab/fsm"
+)
+
+const (
+	// sStart        = "Sensores_0000"
+	// sAllow        = "sAllow"
+	// sWait         = "sWait"
+	// sCancelAllow  = "sCancelAllow"
+	// Sensores_1000 = "Sensores_1000"
+	// Sensores_0100 = "Sensores_0100"
+	// Sensores_0010 = "Sensores_0010"
+	// Sensores_0001 = "Sensores_0001"
+	// sOuput        = "sOuput"
+	// sInput        = "sInput"
+	// sAlarmInput   = "sAlarmInput"
+	// sAlarmOutput  = "sAlarmOutput"
+	// sAlarmExit    = "sAlarmExit"
+	// sInvalidInput = "sInvalidInput"
+	sPreOutput = "sPreOutput"
+	sOutput1   = "Output1"
+	sOutput2   = "Output2"
+)
+
+const (
+	// eS1_0            = "eS1_0"
+	// eS1_1            = "eS1_1"
+	// eS2_0            = "eS2_0"
+	// eS2_1            = "eS2_1"
+	// eOneEntrance     = "eOneEntrance"
+	// eTimeoutEntrance = "eTimeoutEntrance"
+	// eTimeoutAlarm    = "eTimeoutAlarm"
+	// eExitCancel      = "eExitCancel"
+	eOutput    = "eOutput"
+	eExitAlarm = "eExitAlarm"
+)
+
+func NewFSM_v2(ch chan struct{}) *fsm.FSM {
+
+	callbacksfsm := fsm.Callbacks{
+		"before_event": func(contxt context.Context, e *fsm.Event) {
+			fmt.Println("event fsm catraca: ", e.Event)
+			if e.Err != nil {
+				// log.Println(e.Err)
+				e.Cancel(e.Err)
+			}
+		},
+		"leave_state": func(contxt context.Context, e *fsm.Event) {
+			if e.Err != nil {
+				// log.Println(e.Err)
+				e.Cancel(e.Err)
+			}
+		},
+		"enter_state": func(contxt context.Context, e *fsm.Event) {
+			select {
+			case ch <- struct{}{}:
+			default:
+			}
+			log.Printf("FSM catraca, state src: %s, state dst: %s", e.Src, e.Dst)
+		},
+
+		// "leave_closed": func(contxt context.Context, e *fsm.Event) {
+		// },
+		// "before_verify": func(contxt context.Context, e *fsm.Event) {
+		// },
+		// "enter_closed": func(contxt context.Context, e *fsm.Event) {
+		// },
+	}
+
+	rfsm := fsm.NewFSM(
+		sStart,
+		fsm.Events{
+			{Name: eOneEntrance, Src: []string{sStart}, Dst: sAllow},
+			{Name: eS1_1, Src: []string{sAllow}, Dst: sWait},
+			{Name: eS1_0, Src: []string{sWait}, Dst: sWait},
+
+			{Name: eS1_1, Src: []string{sStart}, Dst: sPreOutput},
+			{Name: eS1_1, Src: []string{sWait}, Dst: sInvalidInput},
+			{Name: eS1_0, Src: []string{sPreOutput}, Dst: sOutput1},
+			{Name: eS1_0, Src: []string{sInvalidInput}, Dst: sOutput2},
+			{Name: eOutput, Src: []string{sOutput1}, Dst: sStart},
+			{Name: eOutput, Src: []string{sOutput2}, Dst: sAllow},
+
+			{Name: eS2_1, Src: []string{sWait, sStart}, Dst: sInput},
+			{Name: eS2_0, Src: []string{sInput}, Dst: sStart},
+
+			{Name: eTimeoutEntrance, Src: []string{sAllow}, Dst: sCancelAllow},
+			{Name: eExitCancel, Src: []string{sCancelAllow}, Dst: sStart},
+			{Name: eTimeoutAlarm, Src: []string{sWait}, Dst: sAlarmInput},
+
+			{Name: eS1_1, Src: []string{sAlarmInput}, Dst: sAlarmExit},
+			{Name: eS2_1, Src: []string{sAlarmInput}, Dst: sAlarmExit},
+			{Name: eS1_0, Src: []string{sAlarmExit}, Dst: sStart},
+			{Name: eS2_0, Src: []string{sAlarmExit}, Dst: sStart},
+		},
+		callbacksfsm,
+	)
+	return rfsm
+}

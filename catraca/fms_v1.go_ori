@@ -37,7 +37,7 @@ const (
 	// eExitAlarm       = "eExitAlarm"
 )
 
-func NewFSM(ch chan string) *fsm.FSM {
+func NewFSM(ch chan struct{}) *fsm.FSM {
 
 	callbacksfsm := fsm.Callbacks{
 		"before_event": func(contxt context.Context, e *fsm.Event) {
@@ -55,7 +55,7 @@ func NewFSM(ch chan string) *fsm.FSM {
 		},
 		"enter_state": func(contxt context.Context, e *fsm.Event) {
 			select {
-			case ch <- e.Dst:
+			case ch <- struct{}{}:
 			default:
 			}
 			log.Printf("FSM catraca, state src: %s, state dst: %s", e.Src, e.Dst)
@@ -72,38 +72,24 @@ func NewFSM(ch chan string) *fsm.FSM {
 	rfsm := fsm.NewFSM(
 		sStart,
 		fsm.Events{
-			{Name: eOneEntrance, Src: []string{sStart, sInput, Sensores_0010}, Dst: sAllow},
+			{Name: eOneEntrance, Src: []string{sStart}, Dst: sAllow},
+
 			{Name: eS1_1, Src: []string{sAllow, sStart}, Dst: sWait},
-			{Name: eS2_1, Src: []string{sAllow, sStart}, Dst: sWait},
-
 			{Name: eS1_0, Src: []string{sWait}, Dst: sInput},
-			{Name: eS2_0, Src: []string{sWait}, Dst: sInput},
-
-			{Name: eS2_1, Src: []string{sWait}, Dst: sInput}, //
-
 			{Name: eS2_1, Src: []string{sInput}, Dst: Sensores_0010},
-			{Name: eS1_1, Src: []string{sInput}, Dst: Sensores_0010},
-
-			{Name: eS2_0, Src: []string{Sensores_0010, sInput}, Dst: sStart},
-			{Name: eS1_0, Src: []string{Sensores_0010, sInput}, Dst: sStart},
-
-			// {Name: eS2_1, Src: []string{sInput}, Dst: Sensores_0010},
-			// {Name: eS2_0, Src: []string{Sensores_0010, sInput}, Dst: sStart},
+			{Name: eS2_0, Src: []string{Sensores_0010}, Dst: sStart},
 
 			{Name: eTimeoutEntrance, Src: []string{sAllow}, Dst: sCancelAllow},
 			{Name: eExitCancel, Src: []string{sCancelAllow}, Dst: sStart},
 			{Name: eTimeoutAlarm, Src: []string{sWait}, Dst: sAlarmInput},
 
-			// {Name: eS2_1, Src: []string{sStart}, Dst: Sensores_0001},
-			// {Name: eS2_0, Src: []string{Sensores_0001}, Dst: Sensores_0010},
-			// {Name: eS1_1, Src: []string{Sensores_0010}, Dst: sOuput},
-			// {Name: eS1_0, Src: []string{sOuput}, Dst: sStart},
+			{Name: eS2_1, Src: []string{sStart}, Dst: Sensores_0001},
+			{Name: eS2_0, Src: []string{Sensores_0001}, Dst: Sensores_0010},
+			{Name: eS1_1, Src: []string{Sensores_0010}, Dst: sOuput},
+			{Name: eS1_0, Src: []string{sOuput}, Dst: sStart},
 
-			{Name: eS1_0, Src: []string{sAlarmInput, sAlarmOutput}, Dst: sAlarmExit},
-			{Name: eS2_0, Src: []string{sAlarmInput, sAlarmOutput}, Dst: sAlarmExit},
-
+			{Name: eS1_0, Src: []string{sAlarmInput}, Dst: sAlarmExit},
 			{Name: eS2_0, Src: []string{sAlarmExit}, Dst: sStart},
-			{Name: eS1_0, Src: []string{sAlarmExit}, Dst: sStart},
 		},
 		callbacksfsm,
 	)

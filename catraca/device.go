@@ -50,7 +50,17 @@ func (d *Device) Events(ctx context.Context, autoCancel bool) (chan Event, error
 	contxt, cancel := context.WithCancel(ctx)
 	d.ctx = contxt
 	d.cancel = cancel
+	if d.NewEvents {
+		return events_newcatraca(ctx, d, autoCancel)
+	}
 	return events(contxt, d, autoCancel)
+}
+
+func (d *Device) Events_newcatraca(ctx context.Context, autoCancel bool) (chan Event, error) {
+	contxt, cancel := context.WithCancel(ctx)
+	d.ctx = contxt
+	d.cancel = cancel
+	return events_newcatraca(contxt, d, autoCancel)
 }
 
 func (d *Device) Close() error {
