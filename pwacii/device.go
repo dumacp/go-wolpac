@@ -39,6 +39,10 @@ func NewConf(port string, opts ...OptsFunc) Conf {
 
 	o := DefaultsOptions()
 
+	for _, fn := range opts {
+		fn(&o)
+	}
+
 	conf := Conf{
 		Opts:       o,
 		serialconf: c,
