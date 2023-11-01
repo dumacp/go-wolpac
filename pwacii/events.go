@@ -165,7 +165,7 @@ func (d *Device) Events(ctx context.Context) chan Event {
 				continue
 			}
 			if len(data) > 0 {
-				// fmt.Printf("turnstile data raw: %q\n", data)
+				fmt.Printf("turnstile data raw: %q\n", data)
 				if data[0] == '@' {
 					select {
 					case <-contxt.Done():

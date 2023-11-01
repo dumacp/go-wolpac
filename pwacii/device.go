@@ -98,7 +98,7 @@ func command(d *Device, cmd CommandType, data string) (string, error) {
 	// w := d.Port
 	// r := d.Port
 	s := fmt.Sprintf("$%s%s\r\n", cmd.Code(), data)
-	// fmt.Printf("cmd to send: %q, %X\n", s, s)
+	fmt.Printf("cmd to send: %q, %X\n", s, s)
 
 	// if n, err := w.Write([]byte(s)); err != nil {
 	// 	return "", err
