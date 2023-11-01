@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	READTIMEOUT = 1200 * time.Millisecond
+	READTIMEOUT = 600 * time.Millisecond
 )
 
 type Conf struct {
@@ -182,47 +182,51 @@ func command(d *Device, cmd CommandType, data string) (string, error) {
 		}
 
 		chresponse, err := func() ([]byte, error) {
-			if d.chCmdAck == nil || d.chCmdResp == nil {
-				if resp, err := funcResp(cmd.WithResponse()); err != nil {
-					return resp, err
-				} else {
-					return resp, nil
-				}
-			}
-			select {
-			case v, ok := <-d.chCmdAck:
-				if !ok {
-					if resp, err := funcResp(cmd.WithResponse()); err != nil {
-						return resp, err
-					} else {
-						return resp, nil
-					}
-				} else if v != 1 {
-					return nil, fmt.Errorf("error %q response", "%")
-				}
-				if !cmd.WithResponse() {
-					return nil, nil
-				}
-			case v, ok := <-d.chCmdResp:
-				if !ok {
+			var errx error
+			for range make([]int, 3) {
+				if d.chCmdAck == nil || d.chCmdResp == nil {
 					if resp, err := funcResp(cmd.WithResponse()); err != nil {
 						return resp, err
 					} else {
 						return resp, nil
 					}
 				}
-				if v.Error != nil {
-					return nil, v.Error
+				select {
+				case v, ok := <-d.chCmdAck:
+					if !ok {
+						if resp, err := funcResp(cmd.WithResponse()); err != nil {
+							return resp, err
+						} else {
+							return resp, nil
+						}
+					} else if v != 1 {
+						return nil, fmt.Errorf("error %q response", "%")
+					}
+					if !cmd.WithResponse() {
+						return nil, nil
+					}
+				case v, ok := <-d.chCmdResp:
+					if !ok {
+						if resp, err := funcResp(cmd.WithResponse()); err != nil {
+							return resp, err
+						} else {
+							return resp, nil
+						}
+					}
+					if v.Error != nil {
+						errx = v.Error
+						break
+					}
+					if !strings.EqualFold(v.EventType.Code(), cmd.Code()) {
+						return nil, fmt.Errorf("cmd response different to cmd: %q != %q, data: %q",
+							cmd, v.EventType, fmt.Sprintf("%s%s", v.EventType.Code(), v.Data))
+					}
+					return []byte(v.Data), nil
+				case <-time.After(600 * time.Millisecond):
+					errx = fmt.Errorf("timeout read")
 				}
-				if !strings.EqualFold(v.EventType.Code(), cmd.Code()) {
-					return nil, fmt.Errorf("cmd response different to cmd: %q != %q, data: %q",
-						cmd, v.EventType, fmt.Sprintf("%s%s", v.EventType.Code(), v.Data))
-				}
-				return []byte(v.Data), nil
-			case <-time.After(1200 * time.Millisecond):
-				return nil, fmt.Errorf("timeout read")
 			}
-			return nil, nil
+			return nil, errx
 		}()
 		datatosend := ""
 		if len(chresponse) > 0 {
@@ -233,7 +237,7 @@ func command(d *Device, cmd CommandType, data string) (string, error) {
 			data: datatosend,
 			err:  err,
 		}:
-		case <-time.After(1200 * time.Millisecond):
+		case <-time.After(300 * time.Millisecond):
 			fmt.Printf("response command (%q) without receiver", cmd.String())
 		}
 	}()
