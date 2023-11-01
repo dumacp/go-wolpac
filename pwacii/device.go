@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	READTIMEOUT = 600 * time.Millisecond
+	READTIMEOUT = 1200 * time.Millisecond
 )
 
 type Conf struct {
@@ -219,7 +219,7 @@ func command(d *Device, cmd CommandType, data string) (string, error) {
 						cmd, v.EventType, fmt.Sprintf("%s%s", v.EventType.Code(), v.Data))
 				}
 				return []byte(v.Data), nil
-			case <-time.After(600 * time.Millisecond):
+			case <-time.After(1200 * time.Millisecond):
 				return nil, fmt.Errorf("timeout read")
 			}
 			return nil, nil
@@ -233,7 +233,7 @@ func command(d *Device, cmd CommandType, data string) (string, error) {
 			data: datatosend,
 			err:  err,
 		}:
-		case <-time.After(600 * time.Millisecond):
+		case <-time.After(1200 * time.Millisecond):
 			fmt.Printf("response command (%q) without receiver", cmd.String())
 		}
 	}()

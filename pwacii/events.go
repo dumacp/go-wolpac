@@ -259,7 +259,7 @@ func (d *Device) Events(ctx context.Context) chan Event {
 					EventType: evt,
 					Data:      dataevt,
 				}:
-				case <-time.After(10 * time.Millisecond):
+				case <-time.After(100 * time.Millisecond):
 					fmt.Println("timeout write listen events")
 				}
 			}()
