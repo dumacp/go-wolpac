@@ -13,6 +13,7 @@ type Device struct {
 	Opts
 	pin1               *gpiosysfs.Pin
 	pin2               *gpiosysfs.Pin
+	pathSignalValue    string
 	ctx                context.Context
 	cancel             func()
 	activeAllowchannel chan struct{}
@@ -43,6 +44,26 @@ func (d *Device) Open() error {
 	} else {
 		d.pin2 = pin2
 	}
+	if d.SignalGpio > 0 {
+		sign, err := gpiosysfs.OpenPin(d.SignalGpio)
+		if err != nil {
+			return err
+		}
+		if err := sign.SetDirection(gpiosysfs.Out); err != nil {
+			return err
+		}
+		// if out, err := exec.Command("/bin/sh", "-c", fmt.Sprintf("echo %d > /sys/class/gpio/export", d.SignalGpio)).CombinedOutput(); err != nil {
+		// 	return fmt.Errorf("%s, error: %s", out, err)
+		// }
+		// if out, err := exec.Command("/bin/sh", "-c", fmt.Sprintf("echo out > /sys/class/gpio/gpio%d/direction", d.SignalGpio)).CombinedOutput(); err != nil {
+		// 	return fmt.Errorf("%s, error: %s", out, err)
+		// }
+		d.pathSignalValue = fmt.Sprintf("/sys/class/gpio/gpio%d/value", d.SignalGpio)
+	} else if len(d.SignalLed) > 0 {
+		d.pathSignalValue = fmt.Sprintf("/sys/class/leds/%s/brightness", d.SignalLed)
+	}
+	fmt.Printf("////////////// options turnstile ///////////////////////////: %s\n", d.Opts)
+
 	return nil
 }
 
@@ -79,7 +100,7 @@ func (d *Device) OneEntrance() error {
 	default:
 	}
 	d.activeAllow = true
-	cmdEnable := fmt.Sprintf("echo 1 > /sys/class/leds/%s/brightness", d.SignalLed)
+	cmdEnable := fmt.Sprintf("echo 1 > %s", d.pathSignalValue)
 	funcCommand := func() ([]byte, error) {
 		if out, err := exec.Command("/bin/sh", "-c", cmdEnable).Output(); err != nil {
 			return out, err
@@ -97,7 +118,7 @@ func (d *Device) OneEntrance() error {
 
 func (d *Device) CancelEntrance() error {
 	d.activeAllow = false
-	cmdDisable := fmt.Sprintf("echo 0 > /sys/class/leds/%s/brightness", d.SignalLed)
+	cmdDisable := fmt.Sprintf("echo 0 > %s", d.pathSignalValue)
 	funcCommand := func() ([]byte, error) {
 		if out, err := exec.Command("/bin/sh", "-c", cmdDisable).Output(); err != nil {
 			return out, err

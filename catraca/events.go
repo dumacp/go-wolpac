@@ -52,7 +52,7 @@ func events(ctx context.Context, dev *Device, controlEntrance bool) (chan Event,
 	// 0 -> 1 -> 2 -> 0 : Input
 	// 0 -> 2 -> 1 -> 0 : Output
 	// 0 -> 1 -> 1 -> 0 :
-	cmdDisable := fmt.Sprintf("echo 0 > /sys/class/leds/%s/brightness", dev.SignalLed)
+	cmdDisable := fmt.Sprintf("echo 0 > %s", dev.pathSignalValue)
 	funcCommand := func() ([]byte, error) {
 		if out, err := exec.Command("/bin/sh", "-c", cmdDisable).Output(); err != nil {
 			return out, err
@@ -234,7 +234,7 @@ func events_newcatraca(ctx context.Context, dev *Device, controlEntrance bool) (
 	// 0 -> 1 -> 2 -> 0 : Input
 	// 0 -> 2 -> 1 -> 0 : Output
 	// 0 -> 1 -> 1 -> 0 :
-	cmdDisable := fmt.Sprintf("echo 0 > /sys/class/leds/%s/brightness", dev.SignalLed)
+	cmdDisable := fmt.Sprintf("echo 0 > %s", dev.pathSignalValue)
 	funcCommand := func() ([]byte, error) {
 		if out, err := exec.Command("/bin/sh", "-c", cmdDisable).Output(); err != nil {
 			return out, err
